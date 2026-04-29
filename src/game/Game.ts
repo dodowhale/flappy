@@ -1,10 +1,12 @@
+export type GameState = 'READY' | 'PLAYING' | 'GAME_OVER';
+
 export class Bird {
     public x: number = 50;
     public y: number;
-    public radius: number = 15;
+    public radius: number = 13; // 히트박스를 살짝 작게
     public velocity: number = 0;
-    private gravity: number = 0.6;
-    private jumpStrength: number = -8;
+    private gravity: number = 0.5;
+    private jumpStrength: number = -7;
 
     constructor(canvasHeight: number) {
         this.y = canvasHeight / 2;
@@ -13,15 +15,6 @@ export class Bird {
     public update(canvasHeight: number) {
         this.velocity += this.gravity;
         this.y += this.velocity;
-
-        if (this.y + this.radius > canvasHeight) {
-            this.y = canvasHeight - this.radius;
-            this.velocity = 0;
-        }
-        if (this.y - this.radius < 0) {
-            this.y = this.radius;
-            this.velocity = 0;
-        }
     }
 
     public jump() {
@@ -31,25 +24,25 @@ export class Bird {
     public draw(ctx: CanvasRenderingContext2D) {
         ctx.fillStyle = '#f7d02c';
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, this.radius + 2, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = 'black';
         ctx.beginPath();
-        ctx.arc(this.x + 10, this.y - 5, 3, 0, Math.PI * 2);
+        ctx.arc(this.x + 8, this.y - 4, 3, 0, Math.PI * 2);
         ctx.fill();
     }
 }
 
 export class Pipe {
     public x: number;
-    public width: number = 50;
+    public width: number = 52;
     public topHeight: number;
-    public gap: number = 150;
+    public gap: number = 160;
     public passed: boolean = false;
 
     constructor(canvasWidth: number, canvasHeight: number) {
         this.x = canvasWidth;
-        this.topHeight = Math.random() * (canvasHeight - this.gap - 150) + 50;
+        this.topHeight = Math.random() * (canvasHeight - this.gap - 200) + 100;
     }
 
     public update(speed: number) {
@@ -58,11 +51,17 @@ export class Pipe {
 
     public draw(ctx: CanvasRenderingContext2D, canvasHeight: number) {
         ctx.fillStyle = '#2ecc71';
+        ctx.strokeStyle = '#27ae60';
+        ctx.lineWidth = 2;
+        
         // Top pipe
         ctx.fillRect(this.x, 0, this.width, this.topHeight);
+        ctx.strokeRect(this.x, 0, this.width, this.topHeight);
+        
         // Bottom pipe
         const bottomY = this.topHeight + this.gap;
         ctx.fillRect(this.x, bottomY, this.width, canvasHeight - bottomY);
+        ctx.strokeRect(this.x, bottomY, this.width, canvasHeight - bottomY);
     }
 
     public isOffScreen(): boolean {
@@ -72,20 +71,28 @@ export class Pipe {
 
 export class Game {
     private ctx: CanvasRenderingContext2D;
-    private scoreCallback: (score: number) => void;
+    private onScoreChange: (score: number) => void;
+    private onStateChange: (state: GameState) => void;
+    
     private score: number = 0;
+    private state: GameState = 'READY';
     private animationId: number = 0;
     private lastTime: number = 0;
 
     private bird: Bird;
     private pipes: Pipe[] = [];
     private pipeSpawnTimer: number = 0;
-    private pipeSpawnInterval: number = 1500; // 1.5초마다 생성
-    private gameSpeed: number = 3;
+    private pipeSpawnInterval: number = 1800;
+    private gameSpeed: number = 2.5;
 
-    constructor(canvas: HTMLCanvasElement, onScoreChange: (score: number) => void) {
+    constructor(
+        canvas: HTMLCanvasElement, 
+        onScoreChange: (score: number) => void,
+        onStateChange: (state: GameState) => void
+    ) {
         this.ctx = canvas.getContext('2d')!;
-        this.scoreCallback = onScoreChange;
+        this.onScoreChange = onScoreChange;
+        this.onStateChange = onStateChange;
         this.bird = new Bird(this.ctx.canvas.height);
         
         window.addEventListener('keydown', this.handleInput);
@@ -94,7 +101,27 @@ export class Game {
 
     private handleInput = (e?: KeyboardEvent | MouseEvent) => {
         if (e instanceof KeyboardEvent && e.code !== 'Space') return;
-        this.bird.jump();
+        
+        if (this.state === 'READY') {
+            this.state = 'PLAYING';
+            this.onStateChange('PLAYING');
+        }
+        
+        if (this.state === 'PLAYING') {
+            this.bird.jump();
+        } else if (this.state === 'GAME_OVER') {
+            this.reset();
+            this.state = 'PLAYING';
+            this.onStateChange('PLAYING');
+        }
+    }
+
+    private reset() {
+        this.bird = new Bird(this.ctx.canvas.height);
+        this.pipes = [];
+        this.score = 0;
+        this.onScoreChange(0);
+        this.pipeSpawnTimer = 0;
     }
 
     public start() {
@@ -102,20 +129,56 @@ export class Game {
         this.loop(this.lastTime);
     }
 
+    private checkCollision(): boolean {
+        // 바닥/천장 충돌
+        if (this.bird.y + this.bird.radius > this.ctx.canvas.height || this.bird.y - this.bird.radius < 0) {
+            return true;
+        }
+
+        // 파이프 충돌
+        for (const pipe of this.pipes) {
+            if (
+                this.bird.x + this.bird.radius > pipe.x &&
+                this.bird.x - this.bird.radius < pipe.x + pipe.width
+            ) {
+                if (
+                    this.bird.y - this.bird.radius < pipe.topHeight ||
+                    this.bird.y + this.bird.radius > pipe.topHeight + pipe.gap
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private update(deltaTime: number) {
+        if (this.state !== 'PLAYING') return;
+
         this.bird.update(this.ctx.canvas.height);
 
-        // 파이프 생성 로직
+        if (this.checkCollision()) {
+            this.state = 'GAME_OVER';
+            this.onStateChange('GAME_OVER');
+            return;
+        }
+
         this.pipeSpawnTimer += deltaTime;
         if (this.pipeSpawnTimer > this.pipeSpawnInterval) {
             this.pipes.push(new Pipe(this.ctx.canvas.width, this.ctx.canvas.height));
             this.pipeSpawnTimer = 0;
         }
 
-        // 파이프 업데이트 및 제거
         for (let i = this.pipes.length - 1; i >= 0; i--) {
             const pipe = this.pipes[i]!;
             pipe.update(this.gameSpeed);
+
+            // 점수 획득
+            if (!pipe.passed && pipe.x + pipe.width < this.bird.x) {
+                pipe.passed = true;
+                this.score++;
+                this.onScoreChange(this.score);
+            }
 
             if (pipe.isOffScreen()) {
                 this.pipes.splice(i, 1);
@@ -127,11 +190,21 @@ export class Game {
         const { width, height } = this.ctx.canvas;
         this.ctx.clearRect(0, 0, width, height);
 
+        // Background
         this.ctx.fillStyle = '#70c5ce';
         this.ctx.fillRect(0, 0, width, height);
 
         this.pipes.forEach(pipe => pipe.draw(this.ctx, height));
         this.bird.draw(this.ctx);
+
+        if (this.state === 'READY') {
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            this.ctx.fillRect(0, 0, width, height);
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = 'bold 24px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Press SPACE or Click', width / 2, height / 2);
+        }
     }
 
     private loop = (currentTime: number) => {
