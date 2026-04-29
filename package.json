@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run dev.ts",
-    "build": "bun build ./src/index.tsx --outfile ./dist/index.js --minify --plugin bun-plugin-solid",
+    "build": "bun run build.ts",
     "start": "bun run dist/index.js"
   },
   "devDependencies": {

@@ -1,43 +1,93 @@
+export class Bird {
+    public x: number = 50;
+    public y: number;
+    public radius: number = 15;
+
+    constructor(canvasHeight: number) {
+        this.y = canvasHeight / 2;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        ctx.fillStyle = '#f7d02c';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+export class Pipe {
+    public x: number;
+    public width: number = 50;
+    public topHeight: number;
+    public gap: number = 150;
+
+    constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = canvasWidth;
+        this.topHeight = Math.random() * (canvasHeight - this.gap - 100) + 50;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D, canvasHeight: number) {
+        ctx.fillStyle = '#2ecc71';
+        // Top pipe
+        ctx.fillRect(this.x, 0, this.width, this.topHeight);
+        // Bottom pipe
+        const bottomY = this.topHeight + this.gap;
+        ctx.fillRect(this.x, bottomY, this.width, canvasHeight - bottomY);
+    }
+}
+
 export class Game {
     private ctx: CanvasRenderingContext2D;
     private scoreCallback: (score: number) => void;
     private score: number = 0;
     private animationId: number = 0;
+    private lastTime: number = 0;
+
+    private bird: Bird;
+    private pipes: Pipe[] = [];
 
     constructor(canvas: HTMLCanvasElement, onScoreChange: (score: number) => void) {
         this.ctx = canvas.getContext('2d')!;
         this.scoreCallback = onScoreChange;
+        this.bird = new Bird(this.ctx.canvas.height);
     }
 
     public start() {
-        this.loop();
+        this.lastTime = performance.now();
+        this.loop(this.lastTime);
     }
 
-    private update() {
-        // TODO: 게임 물리 업데이트 로직 구현
+    private update(deltaTime: number) {
+        // deltaTime을 초 단위로 변환 (필요시)
+        // const dt = deltaTime / 1000;
+        
+        // TODO: Physics will be added in Phase 3
     }
 
     private draw() {
         const { width, height } = this.ctx.canvas;
         this.ctx.clearRect(0, 0, width, height);
 
-        // 기본 배경 그리기
+        // Background
         this.ctx.fillStyle = '#70c5ce';
         this.ctx.fillRect(0, 0, width, height);
 
-        // 새 대역 (Place holder)
-        this.ctx.fillStyle = '#f7d02c';
-        this.ctx.beginPath();
-        this.ctx.arc(50, height / 2, 20, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Entities
+        this.bird.draw(this.ctx);
+        this.pipes.forEach(pipe => pipe.draw(this.ctx, height));
 
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '20px sans-serif';
-        this.ctx.fillText('Coming Soon...', width / 2 - 60, height / 2 + 50);
+        // Instructions placeholder
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        this.ctx.font = '16px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Phase 2: Loop & Scaffolding', width / 2, 40);
     }
 
-    private loop = () => {
-        this.update();
+    private loop = (currentTime: number) => {
+        const deltaTime = currentTime - this.lastTime;
+        this.lastTime = currentTime;
+
+        this.update(deltaTime);
         this.draw();
         this.animationId = requestAnimationFrame(this.loop);
     }
