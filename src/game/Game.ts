@@ -14,12 +14,10 @@ export class Bird {
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // 바닥 충돌 처리
         if (this.y + this.radius > canvasHeight) {
             this.y = canvasHeight - this.radius;
             this.velocity = 0;
         }
-        // 천장 충돌 처리
         if (this.y - this.radius < 0) {
             this.y = this.radius;
             this.velocity = 0;
@@ -35,8 +33,6 @@ export class Bird {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
-        
-        // 눈 그리기 (방향성 표현)
         ctx.fillStyle = 'black';
         ctx.beginPath();
         ctx.arc(this.x + 10, this.y - 5, 3, 0, Math.PI * 2);
@@ -49,17 +45,28 @@ export class Pipe {
     public width: number = 50;
     public topHeight: number;
     public gap: number = 150;
+    public passed: boolean = false;
 
     constructor(canvasWidth: number, canvasHeight: number) {
         this.x = canvasWidth;
-        this.topHeight = Math.random() * (canvasHeight - this.gap - 100) + 50;
+        this.topHeight = Math.random() * (canvasHeight - this.gap - 150) + 50;
+    }
+
+    public update(speed: number) {
+        this.x -= speed;
     }
 
     public draw(ctx: CanvasRenderingContext2D, canvasHeight: number) {
         ctx.fillStyle = '#2ecc71';
+        // Top pipe
         ctx.fillRect(this.x, 0, this.width, this.topHeight);
+        // Bottom pipe
         const bottomY = this.topHeight + this.gap;
         ctx.fillRect(this.x, bottomY, this.width, canvasHeight - bottomY);
+    }
+
+    public isOffScreen(): boolean {
+        return this.x + this.width < 0;
     }
 }
 
@@ -72,13 +79,15 @@ export class Game {
 
     private bird: Bird;
     private pipes: Pipe[] = [];
+    private pipeSpawnTimer: number = 0;
+    private pipeSpawnInterval: number = 1500; // 1.5초마다 생성
+    private gameSpeed: number = 3;
 
     constructor(canvas: HTMLCanvasElement, onScoreChange: (score: number) => void) {
         this.ctx = canvas.getContext('2d')!;
         this.scoreCallback = onScoreChange;
         this.bird = new Bird(this.ctx.canvas.height);
         
-        // 입력 이벤트 리스너 등록
         window.addEventListener('keydown', this.handleInput);
         canvas.addEventListener('mousedown', this.handleInput);
     }
@@ -95,6 +104,23 @@ export class Game {
 
     private update(deltaTime: number) {
         this.bird.update(this.ctx.canvas.height);
+
+        // 파이프 생성 로직
+        this.pipeSpawnTimer += deltaTime;
+        if (this.pipeSpawnTimer > this.pipeSpawnInterval) {
+            this.pipes.push(new Pipe(this.ctx.canvas.width, this.ctx.canvas.height));
+            this.pipeSpawnTimer = 0;
+        }
+
+        // 파이프 업데이트 및 제거
+        for (let i = this.pipes.length - 1; i >= 0; i--) {
+            const pipe = this.pipes[i]!;
+            pipe.update(this.gameSpeed);
+
+            if (pipe.isOffScreen()) {
+                this.pipes.splice(i, 1);
+            }
+        }
     }
 
     private draw() {
@@ -104,8 +130,8 @@ export class Game {
         this.ctx.fillStyle = '#70c5ce';
         this.ctx.fillRect(0, 0, width, height);
 
-        this.bird.draw(this.ctx);
         this.pipes.forEach(pipe => pipe.draw(this.ctx, height));
+        this.bird.draw(this.ctx);
     }
 
     private loop = (currentTime: number) => {
