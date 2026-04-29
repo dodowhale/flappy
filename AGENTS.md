@@ -1,0 +1,40 @@
+# AI Agent Development Guidelines for Flappy Bird
+
+이 문서는 Flappy Bird 웹 게임 프로젝트의 개발을 담당하는 AI 에이전트를 위한 지침입니다.
+
+## 1. 기술 스택 (Tech Stack)
+- **Runtime & Bundler**: Bun (Vite 미사용)
+- **Framework**: SolidJS (Latest)
+- **Server**: Hono (for Dev Server & API)
+- **Language**: TypeScript (Strict Mode)
+- **Rendering**: HTML5 Canvas API
+- **Styling**: Vanilla CSS
+
+## 2. SolidJS 반응성 가이드
+- **Signal**: 모든 상태 변화는 `createSignal`을 사용합니다.
+- **Effect**: 사이드 이펙트는 `createEffect` 내에서 처리합니다.
+- **Props**: Props는 비구조화 할당(Destructuring)하지 마세요. 반응성을 잃을 수 있습니다. (`props.data` 형태로 접근)
+- **Performance**: 컴포넌트는 오직 한 번만 실행되므로, 렌더링 루프 내에서 불필요한 Signal 생성을 피하세요.
+
+## 3. Game Engine & Canvas 지침
+- **Separation of Concerns**: 게임 물리 로직(State Update)과 렌더링 로직(Draw)을 엄격히 분리합니다.
+- **Game Loop**: `requestAnimationFrame`을 활용한 통합 게임 루프를 유지합니다.
+- **Scalability**: 추후 다양한 장애물이나 아이템이 추가될 수 있도록 객체 지향적 또는 데이터 중심의 설계를 권장합니다.
+- **Delta Time**: 프레임 속도에 관계없이 일정한 속도를 유지하도록 `deltaTime`을 계산하여 물리 연산에 적용합니다.
+
+## 4. 코딩 컨벤션
+- **Naming**: 
+  - 컴포넌트는 `PascalCase` (예: `GameCanvas.tsx`)
+  - 일반 함수 및 변수는 `camelCase`
+  - 상수는 `UPPER_SNAKE_CASE`
+- **Types**: `any` 사용을 금지하며, 인터페이스와 타입을 명확히 정의합니다.
+- **Comments**: 복잡한 물리 수식이나 로직에는 JSDoc 형식의 주석을 추가합니다.
+
+## 5. Bun 관련 명령어
+- **Dev Server**: `bun run dev` (로직 구현 필요)
+- **Build**: `bun run build` (Bun.build 활용)
+- **Test**: `bun test`
+
+## 6. 에이전트 협업 지침
+- 새로운 기능을 추가하기 전 반드시 `/docs`에 설계를 업데이트하거나 확인하세요.
+- `GEMINI.md`는 이 파일을 참조하고 있으며, 프로젝트의 메타 지침을 담고 있습니다.

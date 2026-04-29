@@ -1,0 +1,20 @@
+{
+  "name": "flappy-bird-solid-bun",
+  "version": "1.0.0",
+  "module": "dev.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run dev.ts",
+    "build": "bun build ./src/index.tsx --outfile ./dist/index.js --minify --plugin bun-plugin-solid",
+    "start": "bun run dist/index.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-plugin-solid": "latest",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "hono": "^4.12.15",
+    "solid-js": "latest"
+  }
+}
