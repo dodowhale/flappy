@@ -4,9 +4,8 @@ import { SolidPlugin } from "bun-plugin-solid";
 
 const PORT = 3000;
 
-// 빌드 프로세스
 console.log("Building project...");
-const result = await Bun.build({
+await Bun.build({
   entrypoints: ["./src/index.tsx"],
   outdir: "./dist",
   naming: "[name].js",
@@ -14,25 +13,33 @@ const result = await Bun.build({
   minify: false,
 });
 
-if (!result.success) {
-  console.error("Build failed", result.logs);
-} else {
-  console.log("Build successful");
-}
-
 const app = new Hono();
 
-// 로깅 미들웨어
+// Simple in-memory leaderboard
+let leaderboard: { name: string, score: number }[] = [
+    { name: "ACE", score: 10 },
+    { name: "BIRD", score: 5 },
+    { name: "FLY", score: 3 }
+];
+
 app.use("*", async (c, next) => {
   console.log(`[${c.req.method}] ${c.req.url}`);
   await next();
 });
 
-// 정적 파일 서빙 (dist 폴더 및 루트 에셋)
-app.use("/dist/*", serveStatic({ root: "." }));
-app.use("/assets/*", serveStatic({ root: "." })); // 향후 이미지/사운드용
+// API Routes
+app.get("/api/leaderboard", (c) => c.json(leaderboard));
+app.post("/api/leaderboard", async (c) => {
+    const { name, score } = await c.req.json();
+    leaderboard.push({ name, score });
+    leaderboard.sort((a, b) => b.score - a.score);
+    leaderboard = leaderboard.slice(0, 5); // Top 5
+    return c.json({ success: true, leaderboard });
+});
 
-// 메인 페이지
+app.use("/dist/*", serveStatic({ root: "." }));
+app.use("/assets/*", serveStatic({ root: "." }));
+
 app.get("/", async (c) => {
   return c.html(await Bun.file("index.html").text());
 });

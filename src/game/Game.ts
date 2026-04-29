@@ -3,10 +3,11 @@ export type GameState = 'READY' | 'PLAYING' | 'GAME_OVER';
 export class Bird {
     public x: number = 50;
     public y: number;
-    public radius: number = 13; // 히트박스를 살짝 작게
+    public radius: number = 14;
     public velocity: number = 0;
     private gravity: number = 0.5;
     private jumpStrength: number = -7;
+    private rotation: number = 0;
 
     constructor(canvasHeight: number) {
         this.y = canvasHeight / 2;
@@ -15,6 +16,9 @@ export class Bird {
     public update(canvasHeight: number) {
         this.velocity += this.gravity;
         this.y += this.velocity;
+        
+        // 회전 효과 (속도에 따라 머리 각도 조절)
+        this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity / 10)));
     }
 
     public jump() {
@@ -22,14 +26,47 @@ export class Bird {
     }
 
     public draw(ctx: CanvasRenderingContext2D) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+
+        // Body
         ctx.fillStyle = '#f7d02c';
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius + 2, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#d35400';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Wing
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.ellipse(-5, 2, 8, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Eye
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(7, -5, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = 'black';
         ctx.beginPath();
-        ctx.arc(this.x + 8, this.y - 4, 3, 0, Math.PI * 2);
+        ctx.arc(9, -5, 2, 0, Math.PI * 2);
         ctx.fill();
+
+        // Beak
+        ctx.fillStyle = '#e67e22';
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(20, 3);
+        ctx.lineTo(12, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
     }
 }
 
@@ -50,22 +87,33 @@ export class Pipe {
     }
 
     public draw(ctx: CanvasRenderingContext2D, canvasHeight: number) {
-        ctx.fillStyle = '#2ecc71';
-        ctx.strokeStyle = '#27ae60';
+        const gradient = ctx.createLinearGradient(this.x, 0, this.x + this.width, 0);
+        gradient.addColorStop(0, '#2ecc71');
+        gradient.addColorStop(0.5, '#58d68d');
+        gradient.addColorStop(1, '#27ae60');
+        
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = '#1e8449';
         ctx.lineWidth = 2;
         
         // Top pipe
         ctx.fillRect(this.x, 0, this.width, this.topHeight);
         ctx.strokeRect(this.x, 0, this.width, this.topHeight);
+        // Top pipe lip
+        ctx.fillRect(this.x - 4, this.topHeight - 20, this.width + 8, 20);
+        ctx.strokeRect(this.x - 4, this.topHeight - 20, this.width + 8, 20);
         
         // Bottom pipe
         const bottomY = this.topHeight + this.gap;
         ctx.fillRect(this.x, bottomY, this.width, canvasHeight - bottomY);
         ctx.strokeRect(this.x, bottomY, this.width, canvasHeight - bottomY);
+        // Bottom pipe lip
+        ctx.fillRect(this.x - 4, bottomY, this.width + 8, 20);
+        ctx.strokeRect(this.x - 4, bottomY, this.width + 8, 20);
     }
 
     public isOffScreen(): boolean {
-        return this.x + this.width < 0;
+        return this.x + this.width + 10 < 0;
     }
 }
 
@@ -130,20 +178,18 @@ export class Game {
     }
 
     private checkCollision(): boolean {
-        // 바닥/천장 충돌
         if (this.bird.y + this.bird.radius > this.ctx.canvas.height || this.bird.y - this.bird.radius < 0) {
             return true;
         }
 
-        // 파이프 충돌
         for (const pipe of this.pipes) {
             if (
-                this.bird.x + this.bird.radius > pipe.x &&
-                this.bird.x - this.bird.radius < pipe.x + pipe.width
+                this.bird.x + this.bird.radius - 5 > pipe.x &&
+                this.bird.x - this.bird.radius + 5 < pipe.x + pipe.width
             ) {
                 if (
-                    this.bird.y - this.bird.radius < pipe.topHeight ||
-                    this.bird.y + this.bird.radius > pipe.topHeight + pipe.gap
+                    this.bird.y - this.bird.radius + 5 < pipe.topHeight ||
+                    this.bird.y + this.bird.radius - 5 > pipe.topHeight + pipe.gap
                 ) {
                     return true;
                 }
@@ -173,7 +219,6 @@ export class Game {
             const pipe = this.pipes[i]!;
             pipe.update(this.gameSpeed);
 
-            // 점수 획득
             if (!pipe.passed && pipe.x + pipe.width < this.bird.x) {
                 pipe.passed = true;
                 this.score++;
@@ -190,9 +235,20 @@ export class Game {
         const { width, height } = this.ctx.canvas;
         this.ctx.clearRect(0, 0, width, height);
 
-        // Background
-        this.ctx.fillStyle = '#70c5ce';
+        // Background Gradient
+        const skyGrad = this.ctx.createLinearGradient(0, 0, 0, height);
+        skyGrad.addColorStop(0, '#2980b9');
+        skyGrad.addColorStop(1, '#6dd5fa');
+        this.ctx.fillStyle = skyGrad;
         this.ctx.fillRect(0, 0, width, height);
+
+        // Clouds (Simple)
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        this.ctx.beginPath();
+        this.ctx.arc(100, 100, 30, 0, Math.PI * 2);
+        this.ctx.arc(130, 100, 40, 0, Math.PI * 2);
+        this.ctx.arc(160, 100, 30, 0, Math.PI * 2);
+        this.ctx.fill();
 
         this.pipes.forEach(pipe => pipe.draw(this.ctx, height));
         this.bird.draw(this.ctx);
@@ -203,7 +259,7 @@ export class Game {
             this.ctx.fillStyle = 'white';
             this.ctx.font = 'bold 24px sans-serif';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('Press SPACE or Click', width / 2, height / 2);
+            this.ctx.fillText('CLICK TO FLY', width / 2, height / 2);
         }
     }
 
