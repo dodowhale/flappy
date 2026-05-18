@@ -18,13 +18,31 @@
 - **이동**: 모든 파이프는 일정한 속도로 왼쪽으로 이동합니다.
 - **충돌**: 새의 히트박스가 파이프 영역과 겹치면 게임 오버됩니다.
 
-### 2.3 배경 (Background)
-- **스크롤**: 배경 이미지가 왼쪽으로 천천히 이동하여 이동하는 듯한 효과를 줍니다 (Parallax scrolling 고려).
+### 2.3 배경 및 환경 (Background & Environment)
+- **패럴랙스 스크롤링 (Parallax Scrolling)**:
+  - Distant Layer: 구름 (가장 느림)
+  - Middle Layer: 도시 건물 (중간 속도)
+  - Foreground Layer: 지면 (게임 속도와 동일)
+- **동적 난이도**: 점수 획득에 따라 점진적으로 속도가 증가하며, 파이프 생성 주기가 짧아집니다.
 
-## 3. 물리 엔진 상세
-- `velocity += gravity` (매 프레임)
-- `position.y += velocity`
-- Jump: `velocity = -jump_strength`
+## 3. 기술적 구현 상세
+
+### 3.1 물리 엔진
+- `velocity += gravity * timeScale`
+- `position.y += velocity * timeScale`
+- **회전 효과**: 속도에 비례하여 새의 각도를 -45도에서 90도까지 회전시켜 역동성을 부여합니다.
+- **가변 타임스텝**: `deltaTime`을 활용하여 프레임 레이트와 독립적인 물리 연산을 수행합니다.
+
+### 3.2 사운드 합성 (Sound Synthesis)
+- **Web Audio API** 활용:
+  - Jump: Square Wave (200Hz -> 600Hz)
+  - Score: Sine Wave (800Hz -> 1200Hz)
+  - Hit: Sawtooth Wave (150Hz -> 40Hz)
+
+### 3.3 렌더링 및 UI
+- **절차적 드로잉**: 모든 그래픽 요소는 Canvas API의 `arc`, `ellipse`, `linearGradient`, `radialGradient`를 사용하여 런타임에 그려집니다.
+- **SolidJS 통합**: 게임 상태(READY, PLAYING, GAME_OVER)와 점수를 SolidJS Signal로 관리하여 UI와 엔진을 동기화합니다.
+- **입력 필터링**: 리더보드 이름 입력 시 게임 조작이 간섭받지 않도록 이벤트 대상을 검사합니다.
 
 ## 4. 상태 관리
 - **READY**: 게임 시작 전, 클릭 대기 중.
@@ -35,9 +53,8 @@
 - 파이프 쌍을 완전히 통과할 때마다 점수가 1점씩 올라갑니다.
 - 최고 점수(High Score)를 로컬 스토리지에 저장합니다.
 - **리더보드 (Leaderboard)**:
-  - 게임 오버 시 이름을 입력하여 서버에 점수를 제출할 수 있습니다.
-  - 상위 5명의 점수를 서버에서 가져와 게임 오버 화면에 표시합니다.
-  - Hono API (`/api/leaderboard`)를 통해 데이터를 관리합니다.
+  - 새로운 최고 기록(Top 5) 달성 시에만 이름 입력 폼이 나타납니다.
+  - Hono API (`/api/leaderboard`)를 통해 전역 랭킹을 관리합니다.
 
 ## 6. 개발 단계별 마일스톤
 1.  [x] 프로젝트 초기 세팅
@@ -47,5 +64,4 @@
 5.  [x] 충돌 감지 및 게임 오버 처리
 6.  [x] 점수 UI 및 상태 전환(Ready, Over) 구현
 7.  [x] 리더보드 API 연동 및 UI 구현
-8.  [x] 그래픽 리소스(이미지/색상) 및 효과음 추가 (프로시저럴 렌더링 및 Web Audio API 활용)
-
+8.  [x] 그래픽 리소스 및 효과음 추가 (프로시저럴 렌더링 및 Web Audio API 활용)

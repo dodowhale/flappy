@@ -19,8 +19,15 @@
 ## 3. Game Engine & Canvas 지침
 - **Separation of Concerns**: 게임 물리 로직(State Update)과 렌더링 로직(Draw)을 엄격히 분리합니다.
 - **Game Loop**: `requestAnimationFrame`을 활용한 통합 게임 루프를 유지합니다.
-- **Scalability**: 추후 다양한 장애물이나 아이템이 추가될 수 있도록 객체 지향적 또는 데이터 중심의 설계를 권장합니다.
-- **Delta Time**: 프레임 속도에 관계없이 일정한 속도를 유지하도록 `deltaTime`을 계산하여 물리 연산에 적용합니다.
+- **Parallax Rendering**: 최소 2개 이상의 배경 레이어(Clouds, Buildings)를 사용하여 원근감을 구현합니다.
+- **Procedural Graphics**: 외부 에셋 없이 Gradient와 Path를 활용하여 시각 효과를 극대화합니다.
+- **Difficulty Scaling**: 점수가 높아질수록 `GAME_SPEED`를 증가시키고 파이프 생성 간격을 줄여 난이도를 조절합니다.
+- **Synthesized Audio**: Web Audio API를 사용하여 실시간으로 효과음을 합성합니다 (Oscillator 및 Gain 활용).
+
+## 4. 핵심 로직 상세
+- **Physics**: `deltaTime` 기반의 가변 타임스텝을 적용하여 프레임 레이트와 독립적인 속도를 보장합니다.
+- **Input Handling**: `input`이나 `button` 등의 UI 요소 클릭 시 게임 조작이 발생하지 않도록 이벤트를 필터링합니다.
+- **Leaderboard**: 서버 API(`/api/leaderboard`)와 연동하여 상위 5위 기록을 관리하며, 로컬 스토리지와 병행하여 최상위 점수를 유지합니다.
 
 ## 4. 코딩 컨벤션
 - **Naming**: 
