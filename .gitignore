@@ -32,3 +32,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Antigravity CLI local workspace configuration
+.antigravitycli/
+
+# VS Code workspace settings (optional/local)
+.vscode/
+
