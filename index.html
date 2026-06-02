@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Flappy Bird - SolidJS & Bun</title>
+    <!-- PWA Settings -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/pwa_icon_192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="./assets/pwa_icon_512.png">
+    <link rel="apple-touch-icon" href="./assets/pwa_icon_192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="./assets/pwa_icon_512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="SweetFlappy">
+    <meta name="theme-color" content="#ff7675">
+    <!-- Cute Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%;
+            height: 100%;
+            overflow: hidden; 
+            position: fixed; /* iOS & Android overscroll bounce 방지 */
+            background: #1a1a24; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-family: 'Nunito', 'Fredoka', sans-serif; 
+            /* Disable pull-to-refresh on mobile */
+            overscroll-behavior: none; 
+            touch-action: none; /* 브라우저 자체 드래그/스크롤 제스처 원천 차단 */
+        }
+        canvas { 
+            display: block; 
+            border-radius: 20px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5); 
+        }
+        * {
+            /* Prevent tap highlight gray box on mobile Safari */
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="./dist/index.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('PWA Service Worker registered:', reg.scope))
+                    .catch(err => console.log('PWA Service Worker failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>
