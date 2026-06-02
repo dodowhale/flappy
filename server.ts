@@ -1,18 +1,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import { SolidPlugin } from "bun-plugin-solid";
 
 const PORT = 3000;
-
-console.log("Building project...");
-await Bun.build({
-  entrypoints: ["./src/index.tsx"],
-  outdir: "./dist",
-  naming: "[name].js",
-  plugins: [SolidPlugin()],
-  minify: false,
-});
-
 const app = new Hono();
 
 // Simple in-memory leaderboard

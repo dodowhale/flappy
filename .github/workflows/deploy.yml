@@ -1,0 +1,42 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master # 지원을 위해 main 또는 master 브랜치 둘 다 반영
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    concurrency: ci-${{ github.ref }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Setup Bun ⚙️
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies 🔧
+        run: bun install
+
+      - name: Build SolidJS Application 🏗️
+        run: bun run build
+
+      - name: Prepare Deployment Files 📂
+        run: |
+          mkdir -p _site
+          cp index.html manifest.json sw.js _site/
+          cp -r assets _site/
+          cp -r dist _site/
+
+      - name: Deploy to GitHub Pages 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: _site
+          branch: gh-pages # gh-pages 브랜치로 자동 배포
