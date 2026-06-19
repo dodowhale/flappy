@@ -66,6 +66,66 @@ export const CHARACTERS: Character[] = [
         skillName: 'HONEY MAGNET',
         skillDesc: 'ACTIVE: ATTRACT ALL COINS FOR 5 SECONDS (SHFT/S)',
         cooldown: 16000 // 16 seconds
+    },
+    {
+        id: 'kiwi',
+        name: 'KIWI',
+        price: 60,
+        color: '#8baf3a', // Kiwi green
+        cheekColor: 'rgba(241, 196, 15, 0.5)', // Yellow gold
+        wingColor: '#c4e538',
+        beakColor: '#d2dae2',
+        skillName: 'MINI SHIFT',
+        skillDesc: 'ACTIVE: SHRINK BIRD SIZE BY 40% FOR 4S (SHFT/S)',
+        cooldown: 18000 // 18 seconds
+    },
+    {
+        id: 'minty',
+        name: 'MINTY',
+        price: 75,
+        color: '#1dd1a1', // Mint green
+        cheekColor: 'rgba(255, 255, 255, 0.7)',
+        wingColor: '#a8e6cf',
+        beakColor: '#48dbfb',
+        skillName: 'MINT BREEZE',
+        skillDesc: 'ACTIVE: SLOW DOWN TIME BY 50% FOR 2.5S (SHFT/S)',
+        cooldown: 20000 // 20 seconds
+    },
+    {
+        id: 'lemon',
+        name: 'LEMON',
+        price: 90,
+        color: '#ffd32d', // Lemon yellow
+        cheekColor: 'rgba(255, 121, 121, 0.6)',
+        wingColor: '#fff200',
+        beakColor: '#ff7675',
+        skillName: 'ZESTY FLASH',
+        skillDesc: 'ACTIVE: DASH FORWARD 140PX WITH INVINCIBILITY (SHFT/S)',
+        cooldown: 22000 // 22 seconds
+    },
+    {
+        id: 'choco',
+        name: 'CHOCO',
+        price: 105,
+        color: '#6f4e37', // Milk chocolate brown
+        cheekColor: 'rgba(255, 234, 167, 0.65)',
+        wingColor: '#a1887f',
+        beakColor: '#fdcb6e',
+        skillName: 'CHOCO GLIDE',
+        skillDesc: 'ACTIVE: REDUCE GRAVITY BY 75% FOR 3.5S (SHFT/S)',
+        cooldown: 15000 // 15 seconds
+    },
+    {
+        id: 'plum',
+        name: 'PLUM',
+        price: 120,
+        color: '#9c27b0', // Plum purple
+        cheekColor: 'rgba(255, 118, 117, 0.65)',
+        wingColor: '#e040fb',
+        beakColor: '#feca57',
+        skillName: 'JUICY FEVER',
+        skillDesc: 'ACTIVE: 2X COINS & COIN MAGNET FOR 5S (SHFT/S)',
+        cooldown: 25000 // 25 seconds
     }
 ];
 
@@ -172,6 +232,38 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.2);
+    }
+
+    public playSlow() {
+        this.init();
+        if (this.ctx?.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(330, this.ctx!.currentTime);
+        osc.frequency.linearRampToValueAtTime(110, this.ctx!.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.06, this.ctx!.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(this.ctx!.destination);
+        osc.start();
+        osc.stop(this.ctx!.currentTime + 0.35);
+    }
+
+    public playDash() {
+        this.init();
+        if (this.ctx?.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(587.33, this.ctx!.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(1174.66, this.ctx!.currentTime + 0.15); // D6
+        gain.gain.setValueAtTime(0.05, this.ctx!.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx!.destination);
+        osc.start();
+        osc.stop(this.ctx!.currentTime + 0.15);
     }
 }
 
@@ -309,8 +401,19 @@ export class Bird {
     public shieldActive: boolean = false;
     public magnetActive: boolean = false;
 
+    // New active status
+    public kiwiActive: boolean = false;
+    public dashActive: boolean = false;
+    public xOffset: number = 0;
+    public glideActive: boolean = false;
+    public feverActive: boolean = false;
+
     constructor(canvasHeight: number) {
         this.y = canvasHeight / 2;
+    }
+
+    public get currentRadius(): number {
+        return this.kiwiActive ? this.radius * 0.6 : this.radius;
     }
 
     public update(timeScale: number, isReady: boolean = false) {
@@ -319,7 +422,8 @@ export class Bird {
             this.velocity = 0;
             this.rotation = 0;
         } else {
-            this.velocity += GRAVITY * timeScale;
+            const gravityModifier = this.glideActive ? 0.25 : 1.0;
+            this.velocity += GRAVITY * gravityModifier * timeScale;
             this.y += this.velocity * timeScale;
             this.wingAngle += this.wingFlapSpeed * timeScale;
             this.rotation = Math.min(Math.PI / 2.2, Math.max(-Math.PI / 5, (this.velocity * 0.08)));
@@ -332,15 +436,16 @@ export class Bird {
 
     public draw(ctx: CanvasRenderingContext2D) {
         const char = CHARACTERS.find(c => c.id === this.characterId) || CHARACTERS[0]!;
+        const r = this.currentRadius;
 
         ctx.save();
-        ctx.translate(this.x, this.y);
+        ctx.translate(this.x + this.xOffset, this.y);
         ctx.rotate(this.rotation);
 
         // Body Drop Shadow
         ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.beginPath();
-        ctx.arc(2, 3, this.radius, 0, Math.PI * 2);
+        ctx.arc(2, 3, r, 0, Math.PI * 2);
         ctx.fill();
 
         // 1. Tail Feathers
@@ -349,37 +454,37 @@ export class Bird {
         ctx.lineWidth = 2.5;
         
         ctx.beginPath();
-        ctx.arc(-this.radius + 3, 2, 7, 0, Math.PI * 2);
+        ctx.arc(-r + 3, 2, 7 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(-this.radius + 2, -5, 6, 0, Math.PI * 2);
+        ctx.arc(-r + 2, -5 * (r / this.radius), 6 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
         // 2. Main Body (Chubby colored sphere)
-        const bodyGrad = ctx.createRadialGradient(-4, -4, 2, 0, 0, this.radius);
+        const bodyGrad = ctx.createRadialGradient(-4 * (r / this.radius), -4 * (r / this.radius), 2 * (r / this.radius), 0, 0, r);
         bodyGrad.addColorStop(0, '#ffffff'); // Glare
         bodyGrad.addColorStop(0.2, char.color); 
         bodyGrad.addColorStop(1, this.darkenColor(char.color)); 
         ctx.fillStyle = bodyGrad;
         
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
         // 3. Rosy Cheek
         ctx.fillStyle = char.cheekColor;
         ctx.beginPath();
-        ctx.arc(this.radius / 2 - 2, this.radius / 3, 5, 0, Math.PI * 2);
+        ctx.arc(r / 2 - 2, r / 3, 5 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
 
         // 4. Eyes
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(this.radius / 2 + 2, -this.radius / 3.5, 6.5, 0, Math.PI * 2);
+        ctx.arc(r / 2 + 2, -r / 3.5, 6.5 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#2c3e50';
         ctx.lineWidth = 2.5;
@@ -387,30 +492,30 @@ export class Bird {
         
         ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
-        ctx.arc(this.radius / 2 + 3.5, -this.radius / 3.5, 3.5, 0, Math.PI * 2);
+        ctx.arc(r / 2 + 3.5, -r / 3.5, 3.5 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(this.radius / 2 + 2.5, -this.radius / 3.5 - 1.5, 1.2, 0, Math.PI * 2);
+        ctx.arc(r / 2 + 2.5, -r / 3.5 - 1.5 * (r / this.radius), 1.2 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(this.radius / 2 + 4.5, -this.radius / 3.5 + 1.2, 0.7, 0, Math.PI * 2);
+        ctx.arc(r / 2 + 4.5, -r / 3.5 + 1.2 * (r / this.radius), 0.7 * (r / this.radius), 0, Math.PI * 2);
         ctx.fill();
 
         // 5. Wing
         ctx.save();
-        ctx.translate(-this.radius / 3.5, this.radius / 6);
+        ctx.translate(-r / 3.5, r / 6);
         const wingFlap = Math.sin(this.wingAngle) * 0.48;
         ctx.rotate(wingFlap);
         
-        const wingGrad = ctx.createLinearGradient(-10, 0, 8, 0);
+        const wingGrad = ctx.createLinearGradient(-10 * (r / this.radius), 0, 8 * (r / this.radius), 0);
         wingGrad.addColorStop(0, '#ffffff');
         wingGrad.addColorStop(1, char.wingColor);
         ctx.fillStyle = wingGrad;
         
         ctx.beginPath();
-        ctx.ellipse(0, 0, 10, 7, -Math.PI / 8, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 10 * (r / this.radius), 7 * (r / this.radius), -Math.PI / 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#4a2c00';
         ctx.lineWidth = 2.5;
@@ -419,7 +524,7 @@ export class Bird {
         ctx.restore();
 
         // 6. Beak
-        const beakGrad = ctx.createLinearGradient(this.radius - 3, 0, this.radius + 8, 0);
+        const beakGrad = ctx.createLinearGradient(r - 3, 0, r + 8, 0);
         beakGrad.addColorStop(0, char.beakColor);
         beakGrad.addColorStop(1, '#ff6b6b');
         ctx.fillStyle = beakGrad;
@@ -427,16 +532,16 @@ export class Bird {
         ctx.lineWidth = 2.5;
         
         ctx.beginPath();
-        ctx.moveTo(this.radius - 2.5, -2);
-        ctx.quadraticCurveTo(this.radius + 7, -1, this.radius + 7, 1);
-        ctx.quadraticCurveTo(this.radius + 2, 4, this.radius - 1, 4.5);
+        ctx.moveTo(r - 2.5, -2);
+        ctx.quadraticCurveTo(r + 7, -1, r + 7, 1);
+        ctx.quadraticCurveTo(r + 2, 4, r - 1, 4.5);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.moveTo(this.radius - 1, 1);
-        ctx.lineTo(this.radius + 5.5, 1);
+        ctx.moveTo(r - 1, 1);
+        ctx.lineTo(r + 5.5, 1);
         ctx.stroke();
 
         ctx.restore(); // Restore body translation/rotation
@@ -444,13 +549,13 @@ export class Bird {
         // 7. Shield Aura
         if (this.shieldActive) {
             ctx.save();
-            ctx.translate(this.x, this.y);
+            ctx.translate(this.x + this.xOffset, this.y);
             ctx.strokeStyle = '#74b9ff';
             ctx.lineWidth = 3.5;
             ctx.shadowColor = '#74b9ff';
             ctx.shadowBlur = 12;
             ctx.beginPath();
-            ctx.arc(0, 0, this.radius + 10, 0, Math.PI * 2);
+            ctx.arc(0, 0, r + 10, 0, Math.PI * 2);
             ctx.stroke();
 
             // Draw floating small stars on shield
@@ -462,7 +567,7 @@ export class Bird {
             for (let i = 0; i < 3; i++) {
                 const angle = shieldTime + (i * Math.PI * 2 / 3);
                 ctx.save();
-                ctx.translate(Math.cos(angle) * (this.radius + 10), Math.sin(angle) * (this.radius + 10));
+                ctx.translate(Math.cos(angle) * (r + 10), Math.sin(angle) * (r + 10));
                 drawStar(ctx, 0, 0, 5, 4.5, 2.2);
                 ctx.fill();
                 ctx.stroke();
@@ -472,15 +577,67 @@ export class Bird {
         }
 
         // 8. Magnet Aura
-        if (this.magnetActive) {
+        if (this.magnetActive || this.feverActive) {
             ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.strokeStyle = '#ff9f43';
+            ctx.translate(this.x + this.xOffset, this.y);
+            ctx.strokeStyle = this.feverActive ? '#e040fb' : '#ff9f43';
             ctx.lineWidth = 2.5;
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
-            ctx.arc(0, 0, this.radius + 16, 0, Math.PI * 2);
+            ctx.arc(0, 0, r + (this.feverActive ? 22 : 16), 0, Math.PI * 2);
             ctx.stroke();
+            ctx.restore();
+        }
+
+        // 9. Lemon Dash Lightning Aura
+        if (this.dashActive) {
+            ctx.save();
+            ctx.translate(this.x + this.xOffset, this.y);
+            ctx.strokeStyle = '#ffd32d';
+            ctx.lineWidth = 3.0;
+            ctx.shadowColor = '#ffd32d';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI * 2 / 6) + (performance.now() * 0.01);
+                const ox = Math.cos(angle) * (r + 8);
+                const oy = Math.sin(angle) * (r + 8);
+                if (i === 0) ctx.moveTo(ox, oy);
+                else ctx.lineTo(ox + (Math.random() - 0.5) * 6, oy + (Math.random() - 0.5) * 6);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // 10. Choco Glide Aura
+        if (this.glideActive) {
+            ctx.save();
+            ctx.translate(this.x + this.xOffset, this.y);
+            ctx.fillStyle = 'rgba(161, 136, 127, 0.45)';
+            ctx.beginPath();
+            ctx.arc(-r - 6, Math.sin(performance.now() * 0.01) * 4, 3.5, 0, Math.PI * 2);
+            ctx.arc(-r - 12, Math.cos(performance.now() * 0.012) * 5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 11. Plum Fever Golden/Purple Aura
+        if (this.feverActive) {
+            ctx.save();
+            ctx.translate(this.x + this.xOffset, this.y);
+            const feverTime = performance.now() * 0.007;
+            ctx.lineWidth = 2.0;
+            ctx.shadowBlur = 8;
+            for (let i = 0; i < 2; i++) {
+                ctx.strokeStyle = i === 0 ? '#e040fb' : '#fecb2f';
+                ctx.shadowColor = i === 0 ? '#e040fb' : '#fecb2f';
+                ctx.beginPath();
+                const orbitR = r + 12 + i * 4;
+                const startAngle = feverTime + i * Math.PI;
+                ctx.arc(0, 0, orbitR, startAngle, startAngle + Math.PI * 0.6);
+                ctx.stroke();
+            }
             ctx.restore();
         }
     }
@@ -671,6 +828,11 @@ export class Game {
     // Active skills duration timers (in ms)
     private shieldDurationRemaining: number = 0;
     private magnetDurationRemaining: number = 0;
+    private kiwiDurationRemaining: number = 0;
+    private mintDurationRemaining: number = 0;
+    private dashDurationRemaining: number = 0;
+    private chocoDurationRemaining: number = 0;
+    private feverDurationRemaining: number = 0;
     private skillCooldownRemaining: number = 0;
 
     // Parallax Layers
@@ -747,6 +909,36 @@ export class Game {
             this.bird.magnetActive = true;
             this.magnetDurationRemaining = 5000; // 5 seconds
             this.audio.playScore();
+        } else if (char.id === 'kiwi') {
+            // Mini Shift
+            this.bird.kiwiActive = true;
+            this.kiwiDurationRemaining = 4000; // 4 seconds
+            this.audio.playScore();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 8, true);
+        } else if (char.id === 'minty') {
+            // Mint Breeze (Slow motion)
+            this.mintDurationRemaining = 2500; // 2.5 seconds
+            this.audio.playSlow();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 8, true);
+        } else if (char.id === 'lemon') {
+            // Zesty Flash
+            this.bird.dashActive = true;
+            this.bird.xOffset = 140; // Dash forward 140px
+            this.dashDurationRemaining = 200; // 0.2 seconds dash duration
+            this.audio.playDash();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 16, true);
+        } else if (char.id === 'choco') {
+            // Choco Glide (Float gravity)
+            this.bird.glideActive = true;
+            this.chocoDurationRemaining = 3500; // 3.5 seconds
+            this.audio.playScore();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 6, true);
+        } else if (char.id === 'plum') {
+            // Juicy Fever (Fever Time)
+            this.bird.feverActive = true;
+            this.feverDurationRemaining = 5000; // 5 seconds
+            this.audio.playScore();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 12, true);
         }
 
         this.skillCooldownRemaining = char.cooldown;
@@ -829,6 +1021,11 @@ export class Game {
         
         this.shieldDurationRemaining = 0;
         this.magnetDurationRemaining = 0;
+        this.kiwiDurationRemaining = 0;
+        this.mintDurationRemaining = 0;
+        this.dashDurationRemaining = 0;
+        this.chocoDurationRemaining = 0;
+        this.feverDurationRemaining = 0;
         this.skillCooldownRemaining = 0;
         this.onCooldownUpdate(0, 1);
     }
@@ -839,23 +1036,31 @@ export class Game {
     }
 
     private checkCollision(): boolean {
+        // Zesty Flash dash (LEMON) invincibility
+        if (this.bird.dashActive) {
+            return false;
+        }
+
         const canvasHeight = this.ctx.canvas.height;
-        if (this.bird.y + this.bird.radius - 4 > canvasHeight - 42) {
+        const radius = this.bird.currentRadius;
+        const birdX = this.bird.x + this.bird.xOffset;
+
+        if (this.bird.y + radius - 4 > canvasHeight - 42) {
             return true;
         }
-        if (this.bird.y - this.bird.radius + 6 < 0) {
+        if (this.bird.y - radius + 6 < 0) {
             return true;
         }
 
         const gap = this.currentGap;
         for (const pipe of this.pipes) {
             if (
-                this.bird.x + this.bird.radius - 8 > pipe.x &&
-                this.bird.x - this.bird.radius + 8 < pipe.x + pipe.width
+                birdX + radius - 8 > pipe.x &&
+                birdX - radius + 8 < pipe.x + pipe.width
             ) {
                 if (
-                    this.bird.y - this.bird.radius + 9 < pipe.topHeight ||
-                    this.bird.y + this.bird.radius - 9 > pipe.topHeight + gap
+                    this.bird.y - radius + 9 < pipe.topHeight ||
+                    this.bird.y + radius - 9 > pipe.topHeight + gap
                 ) {
                     return true;
                 }
@@ -881,7 +1086,13 @@ export class Game {
     }
 
     private update(deltaTime: number) {
-        const timeScale = deltaTime / 16.67;
+        let effectiveDelta = deltaTime;
+        if (this.state === 'PLAYING' && this.mintDurationRemaining > 0) {
+            this.mintDurationRemaining = Math.max(0, this.mintDurationRemaining - deltaTime);
+            effectiveDelta = deltaTime * 0.5; // 50% slow motion
+        }
+
+        const timeScale = effectiveDelta / 16.67;
         const speed = this.state === 'GAME_OVER' ? 0 : this.currentSpeed;
         const gap = this.currentGap;
 
@@ -908,6 +1119,34 @@ export class Game {
                     this.bird.magnetActive = false;
                 }
             }
+            if (this.kiwiDurationRemaining > 0) {
+                this.kiwiDurationRemaining = Math.max(0, this.kiwiDurationRemaining - deltaTime);
+                if (this.kiwiDurationRemaining === 0) {
+                    this.bird.kiwiActive = false;
+                }
+            }
+            if (this.dashDurationRemaining > 0) {
+                this.dashDurationRemaining = Math.max(0, this.dashDurationRemaining - deltaTime);
+                if (this.dashDurationRemaining === 0) {
+                    this.bird.dashActive = false;
+                }
+            }
+            if (this.bird.xOffset > 0) {
+                this.bird.xOffset = Math.max(0, this.bird.xOffset - effectiveDelta * 0.55); // Slide back smoothly
+            }
+            if (this.chocoDurationRemaining > 0) {
+                this.chocoDurationRemaining = Math.max(0, this.chocoDurationRemaining - deltaTime);
+                if (this.chocoDurationRemaining === 0) {
+                    this.bird.glideActive = false;
+                }
+            }
+            if (this.feverDurationRemaining > 0) {
+                this.feverDurationRemaining = Math.max(0, this.feverDurationRemaining - deltaTime);
+                if (this.feverDurationRemaining === 0) {
+                    this.bird.feverActive = false;
+                }
+            }
+            
             if (this.skillCooldownRemaining > 0) {
                 this.skillCooldownRemaining = Math.max(0, this.skillCooldownRemaining - deltaTime);
                 const char = CHARACTERS.find(c => c.id === this.bird.characterId);
@@ -943,16 +1182,19 @@ export class Game {
             let pullSpeed = 0;
             let pullRadius = 0;
 
-            if (this.bird.magnetActive) {
+            if (this.bird.magnetActive || this.bird.feverActive) {
                 pullSpeed = 7.5;
                 pullRadius = 150;
+            } else if (this.bird.dashActive) {
+                pullSpeed = 16.0; // ultra fast pull during dash
+                pullRadius = 180;
             } else if (this.bird.characterId === 'goldy') {
                 pullSpeed = 3.2;
                 pullRadius = 60; // goldy has passive magnetic range
             }
 
             if (pullRadius > 0 && !coin.collected && this.state === 'PLAYING') {
-                const dx = this.bird.x - coin.x;
+                const dx = (this.bird.x + this.bird.xOffset) - coin.x;
                 const dy = this.bird.y - coin.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < pullRadius) {
@@ -966,19 +1208,20 @@ export class Game {
 
             // Collide with bird
             if (!coin.collected && this.state === 'PLAYING') {
-                const dx = this.bird.x - coin.x;
+                const dx = (this.bird.x + this.bird.xOffset) - coin.x;
                 const dy = this.bird.y - coin.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < this.bird.radius + coin.radius + 4) {
+                if (dist < this.bird.currentRadius + coin.radius + 4) {
                     coin.collected = true;
                     this.coins.splice(i, 1);
                     
                     // Score coin!
                     this.audio.playCoin();
                     const totalCoins = Number(localStorage.getItem('flappy-candy-coins') || 0);
-                    localStorage.setItem('flappy-candy-coins', String(totalCoins + 1));
+                    const gain = this.bird.feverActive ? 2 : 1; // Plum gives 2x coins
+                    localStorage.setItem('flappy-candy-coins', String(totalCoins + gain));
                     this.onCoinCollected();
-                    this.spawnParticleTrail(this.bird.x, this.bird.y, 5, true);
+                    this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 5, true);
                     continue;
                 }
             }
@@ -993,7 +1236,7 @@ export class Game {
         this.bird.update(timeScale);
 
         if (Math.random() < 0.35) {
-            this.spawnParticleTrail(this.bird.x - 12, this.bird.y + (Math.random() - 0.5) * 6, 1, false);
+            this.spawnParticleTrail(this.bird.x + this.bird.xOffset - 12, this.bird.y + (Math.random() - 0.5) * 6, 1, false);
         }
 
         if (this.checkCollision()) {
@@ -1002,14 +1245,14 @@ export class Game {
                 this.bird.shieldActive = false;
                 this.shieldDurationRemaining = 0;
                 this.audio.playShieldBreak();
-                this.spawnParticleTrail(this.bird.x, this.bird.y, 14, true);
+                this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
 
                 // Blow up colliding pipes
                 for (let i = this.pipes.length - 1; i >= 0; i--) {
                     const pipe = this.pipes[i]!;
                     if (
-                        this.bird.x + this.bird.radius - 8 > pipe.x &&
-                        this.bird.x - this.bird.radius + 8 < pipe.x + pipe.width
+                        this.bird.x + this.bird.xOffset + this.bird.currentRadius - 8 > pipe.x &&
+                        this.bird.x + this.bird.xOffset - this.bird.currentRadius + 8 < pipe.x + pipe.width
                     ) {
                         this.pipes.splice(i, 1);
                     }
@@ -1018,7 +1261,7 @@ export class Game {
                 this.state = 'GAME_OVER';
                 this.onStateChange('GAME_OVER');
                 this.audio.playHit();
-                this.spawnParticleTrail(this.bird.x, this.bird.y, 16, true);
+                this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
                 return;
             }
         }
@@ -1041,7 +1284,7 @@ export class Game {
             const pipe = this.pipes[i]!;
             pipe.update(speed, timeScale, this.ctx.canvas.height, gap);
 
-            if (!pipe.passed && pipe.x + pipe.width < this.bird.x) {
+            if (!pipe.passed && pipe.x + pipe.width < this.bird.x + this.bird.xOffset) {
                 pipe.passed = true;
                 this.score++;
                 this.onScoreChange(this.score);

@@ -326,7 +326,13 @@ const App = () => {
                                 }}
                             >
                                 {/* Skill Icon representation */}
-                                {currentCharacterData().id === 'cherry' ? '💥' : currentCharacterData().id === 'berry' ? '🛡️' : '🧲'}
+                                {currentCharacterData().id === 'cherry' ? '💥' : 
+                                 currentCharacterData().id === 'berry' ? '🛡️' : 
+                                 currentCharacterData().id === 'mango' ? '🧲' : 
+                                 currentCharacterData().id === 'kiwi' ? '🥝' : 
+                                 currentCharacterData().id === 'minty' ? '🍃' : 
+                                 currentCharacterData().id === 'lemon' ? '⚡' : 
+                                 currentCharacterData().id === 'choco' ? '🍫' : '🔮'}
 
                                 {/* Cooldown Overlay */}
                                 <Show when={skillCdRemaining() > 0}>
