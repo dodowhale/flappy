@@ -36,6 +36,16 @@ const App = () => {
     const [skillCdRemaining, setSkillCdRemaining] = createSignal(0);
     const [skillCdDuration, setSkillCdDuration] = createSignal(1);
 
+    // Boss battle signals
+    const [bossHp, setBossHp] = createSignal(100);
+    const [bossMaxHp, setBossMaxHp] = createSignal(100);
+    const [showBossHp, setShowBossHp] = createSignal(false);
+
+    // Audio state
+    const [bgmEnabled, setBgmEnabled] = createSignal(
+        localStorage.getItem('flappy-bgm-enabled') !== 'false'
+    );
+
     // Responsive scaling state
     const [scale, setScale] = createSignal(1);
 
@@ -159,6 +169,11 @@ const App = () => {
                 (remaining, duration) => {
                     setSkillCdRemaining(remaining);
                     setSkillCdDuration(duration);
+                },
+                (hp, maxHp) => {
+                    setBossHp(hp);
+                    setBossMaxHp(maxHp);
+                    setShowBossHp(hp > 0 && gameState() === 'BOSS_FIGHT');
                 }
             );
 
@@ -236,6 +251,37 @@ const App = () => {
                     {score()}
                 </div>
 
+                {/* BGM Toggle button */}
+                <button 
+                    onClick={() => {
+                        const nextState = !bgmEnabled();
+                        setBgmEnabled(nextState);
+                        if (gameInstance) {
+                            gameInstance.audio.toggleBGM(nextState);
+                        }
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '18px',
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        border: '2.5px solid #4a2c00',
+                        'border-radius': '50%',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        'align-items': 'center',
+                        'justify-content': 'center',
+                        cursor: 'pointer',
+                        'font-size': '14px',
+                        'z-index': 15,
+                        'box-shadow': '0 4px 6px rgba(74, 44, 0, 0.15)',
+                        'transition': 'all 0.1s ease'
+                    }}
+                >
+                    {bgmEnabled() ? '🔊' : '🔇'}
+                </button>
+
                 {/* Best Score Label */}
                 <div style={{
                     position: 'absolute',
@@ -250,6 +296,45 @@ const App = () => {
                 }}>
                     👑 BEST: {highScore()}
                 </div>
+
+                {/* Boss HP Bar */}
+                <Show when={showBossHp()}>
+                    <div style={{
+                        position: 'absolute',
+                        top: '115px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '260px',
+                        height: '18px',
+                        'background-color': 'rgba(74, 44, 0, 0.35)',
+                        'border': '3px solid #4a2c00',
+                        'border-radius': '10px',
+                        'overflow': 'hidden',
+                        'z-index': 11
+                    }}>
+                        <div style={{
+                            width: `${(bossHp() / bossMaxHp()) * 100}%`,
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #ff7675 0%, #d63031 100%)',
+                            'border-radius': '6px',
+                            'transition': 'width 0.15s ease-out'
+                        }} />
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            color: '#ffffff',
+                            'font-size': '10px',
+                            'font-weight': '900',
+                            'text-shadow': '1px 1px 0px #4a2c00',
+                            'pointer-events': 'none',
+                            'white-space': 'nowrap'
+                        }}>
+                            CANDY GIANT: {bossHp()}%
+                        </div>
+                    </div>
+                </Show>
 
                 {/* Candy Star Coin Counter */}
                 <div style={{
@@ -391,7 +476,8 @@ const App = () => {
                             'font-weight': 'bold',
                             'cursor': 'pointer',
                             'box-shadow': '0 4px 0 #4a2c00',
-                            'transition': 'all 0.1s'
+                            'transition': 'all 0.1s',
+                            'white-space': 'nowrap'
                         }}
                         onMouseDown={(e) => e.currentTarget.style.transform = 'translate(-50%, 4px)'}
                         onMouseUp={(e) => e.currentTarget.style.transform = 'translate(-50%, 0)'}
@@ -787,15 +873,14 @@ const App = () => {
                      <div style={{
                         position: 'absolute',
                         bottom: '90px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
+                        left: '0',
+                        width: '100%',
                         color: 'white',
                         'font-size': '15px',
                         'font-weight': 'bold',
                         'text-align': 'center',
                         'text-shadow': '2px 2px 0px #4a2c00',
                         'animation': 'pulse 1.4s infinite',
-                        'width': '100%',
                         'letter-spacing': '0.5px',
                         'pointer-events': 'none',
                         'font-family': '"Fredoka", sans-serif'

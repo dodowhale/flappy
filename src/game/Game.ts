@@ -1,4 +1,4 @@
-export type GameState = 'READY' | 'PLAYING' | 'GAME_OVER';
+export type GameState = 'READY' | 'PLAYING' | 'GAME_OVER' | 'BOSS_FIGHT';
 
 const GRAVITY = 0.42; // Slightly floating physics
 const JUMP_STRENGTH = -7.2;
@@ -131,10 +131,147 @@ export const CHARACTERS: Character[] = [
 
 class AudioManager {
     private ctx: AudioContext | null = null;
+    private schedulerIntervalId: any = null;
+    private nextNoteTime: number = 0.0;
+    private currentNoteIndex: number = 0;
+    private bpm: number = 135;
+    private bgmEnabled: boolean = true;
+    private bgmActive: boolean = false;
+    private speedFactor: number = 1.0;
+    private feverActive: boolean = false;
+
+    // C Major/Pentatonic scale casual 8-bit retro loops
+    private melody: number[] = [
+        261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66,
+        329.63, 392.00, 440.00, 523.25, 440.00, 523.25, 587.33, 659.25
+    ];
+    
+    private bass: number[] = [
+        130.81, 130.81, 164.81, 164.81, 220.00, 220.00, 174.61, 174.61
+    ];
 
     private init() {
         if (!this.ctx) {
             this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const stored = localStorage.getItem('flappy-bgm-enabled');
+            this.bgmEnabled = stored !== 'false';
+        }
+    }
+
+    public toggleBGM(enabled: boolean) {
+        this.bgmEnabled = enabled;
+        localStorage.setItem('flappy-bgm-enabled', String(enabled));
+        if (!enabled) {
+            this.stopBGM();
+        } else {
+            this.startBGM();
+        }
+    }
+
+    public updateBGMTempo(speedFactor: number, feverActive: boolean) {
+        this.speedFactor = speedFactor;
+        this.feverActive = feverActive;
+        this.bpm = 135 * speedFactor * (feverActive ? 1.25 : 1.0);
+    }
+
+    public startBGM() {
+        this.init();
+        if (!this.bgmEnabled) return;
+        if (this.bgmActive) return;
+
+        if (this.ctx?.state === 'suspended') {
+            this.ctx.resume();
+        }
+        
+        this.bgmActive = true;
+        this.nextNoteTime = this.ctx!.currentTime;
+        this.currentNoteIndex = 0;
+
+        // 50ms check interval, lookahead scheduling
+        this.schedulerIntervalId = setInterval(() => {
+            this.scheduler();
+        }, 50);
+    }
+
+    private scheduler() {
+        if (!this.ctx) return;
+        const lookahead = 0.2; // 200ms lookahead
+        while (this.nextNoteTime < this.ctx.currentTime + lookahead) {
+            this.scheduleNote(this.currentNoteIndex, this.nextNoteTime);
+            this.advanceNote();
+        }
+    }
+
+    private advanceNote() {
+        const secondsPerBeat = 60.0 / this.bpm;
+        // 8th notes (0.5 beats)
+        this.nextNoteTime += 0.5 * secondsPerBeat;
+        this.currentNoteIndex = (this.currentNoteIndex + 1) % this.melody.length;
+    }
+
+    private scheduleNote(index: number, time: number) {
+        if (!this.ctx) return;
+
+        const isFever = this.feverActive;
+        let freq = this.melody[index]! * (isFever ? 2.0 : 1.0);
+        
+        // 1. Lead Melody Note (Square Wave)
+        const oscMelody = this.ctx.createOscillator();
+        const gainMelody = this.ctx.createGain();
+        
+        oscMelody.type = 'square';
+        oscMelody.frequency.setValueAtTime(freq, time);
+        
+        gainMelody.gain.setValueAtTime(0.0, time);
+        gainMelody.gain.linearRampToValueAtTime(isFever ? 0.032 : 0.022, time + 0.015);
+        gainMelody.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+        
+        oscMelody.connect(gainMelody);
+        gainMelody.connect(this.ctx.destination);
+        
+        oscMelody.start(time);
+        oscMelody.stop(time + 0.24);
+
+        // 2. Bass note (Triangle Wave, once every 2 notes)
+        if (index % 2 === 0) {
+            const bassIndex = Math.floor(index / 2) % this.bass.length;
+            const bassFreq = this.bass[bassIndex]!;
+            
+            const oscBass = this.ctx.createOscillator();
+            const gainBass = this.ctx.createGain();
+            
+            oscBass.type = 'triangle';
+            oscBass.frequency.setValueAtTime(bassFreq, time);
+            
+            gainBass.gain.setValueAtTime(0.0, time);
+            gainBass.gain.linearRampToValueAtTime(0.045, time + 0.02);
+            gainBass.gain.exponentialRampToValueAtTime(0.001, time + 0.45);
+            
+            oscBass.connect(gainBass);
+            gainBass.connect(this.ctx.destination);
+            
+            oscBass.start(time);
+            oscBass.stop(time + 0.48);
+
+            // Clean up Bass Nodes after playing to prevent memory leak
+            setTimeout(() => {
+                oscBass.disconnect();
+                gainBass.disconnect();
+            }, (time - this.ctx!.currentTime + 0.6) * 1000);
+        }
+
+        // Clean up Lead Melody Nodes after playing to prevent memory leak
+        setTimeout(() => {
+            oscMelody.disconnect();
+            gainMelody.disconnect();
+        }, (time - this.ctx!.currentTime + 0.35) * 1000);
+    }
+
+    public stopBGM() {
+        this.bgmActive = false;
+        if (this.schedulerIntervalId) {
+            clearInterval(this.schedulerIntervalId);
+            this.schedulerIntervalId = null;
         }
     }
 
@@ -152,6 +289,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.08);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 150);
     }
 
     public playScore() {
@@ -168,6 +310,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.15);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 220);
     }
 
     public playHit() {
@@ -184,6 +331,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.25);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 320);
     }
 
     public playCoin() {
@@ -200,6 +352,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.12);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 200);
     }
 
     public playExplode() {
@@ -216,6 +373,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.35);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 450);
     }
 
     public playShieldBreak() {
@@ -232,6 +394,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.2);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 300);
     }
 
     public playSlow() {
@@ -248,6 +415,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.35);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 450);
     }
 
     public playDash() {
@@ -264,6 +436,11 @@ class AudioManager {
         gain.connect(this.ctx!.destination);
         osc.start();
         osc.stop(this.ctx!.currentTime + 0.15);
+
+        setTimeout(() => {
+            osc.disconnect();
+            gain.disconnect();
+        }, 250);
     }
 }
 
@@ -284,7 +461,8 @@ interface GameParticle {
     size: number;
     alpha: number;
     color: string;
-    type: 'heart' | 'star' | 'bubble';
+    type: 'heart' | 'star' | 'bubble' | 'text';
+    text?: string;
     rotation: number;
     rotSpeed: number;
 }
@@ -655,6 +833,164 @@ export class Bird {
         return `rgb(${r}, ${g}, ${b})`;
     }
 }
+interface WeatherParticle {
+    x: number;
+    y: number;
+    vy: number;
+    vx: number;
+    size: number;
+    color: string;
+    active: boolean;
+}
+
+export class WeatherSystem {
+    private particles: WeatherParticle[] = [];
+    private maxParticles: number = 100;
+    public windForce: number = 0.0;
+    private weatherState: 'sunny' | 'rainy' | 'snowy' = 'sunny';
+    private lastWindChange: number = 0;
+    private lastWeatherChange: number = 0;
+
+    constructor(canvasWidth: number, canvasHeight: number) {
+        for (let i = 0; i < this.maxParticles; i++) {
+            this.particles.push({
+                x: Math.random() * canvasWidth,
+                y: Math.random() * canvasHeight,
+                vy: 0,
+                vx: 0,
+                size: 0,
+                color: '#ffffff',
+                active: false
+            });
+        }
+    }
+
+    public update(deltaTime: number, timeScale: number, canvasWidth: number, canvasHeight: number, bird: Bird) {
+        const now = performance.now();
+
+        if (now - this.lastWeatherChange > 18000) {
+            this.lastWeatherChange = now;
+            const states: ('sunny' | 'rainy' | 'snowy')[] = ['sunny', 'rainy', 'snowy'];
+            const nextState = states[Math.floor(Math.random() * states.length)]!;
+            this.weatherState = nextState;
+            
+            if (this.weatherState === 'rainy') {
+                this.particles.forEach(p => {
+                    p.active = true;
+                    p.x = Math.random() * canvasWidth;
+                    p.y = Math.random() * canvasHeight;
+                    p.vy = Math.random() * 2.8 + 4.5;
+                    p.vx = 0;
+                    p.size = Math.random() * 1.5 + 1.0;
+                    p.color = 'rgba(162, 191, 237, 0.45)';
+                });
+            } else if (this.weatherState === 'snowy') {
+                this.particles.forEach(p => {
+                    p.active = true;
+                    p.x = Math.random() * canvasWidth;
+                    p.y = Math.random() * canvasHeight;
+                    p.vy = Math.random() * 0.8 + 1.2;
+                    p.vx = (Math.random() - 0.5) * 0.4;
+                    p.size = Math.random() * 2.5 + 1.5;
+                    p.color = 'rgba(255, 255, 255, 0.75)';
+                });
+            } else {
+                this.particles.forEach(p => p.active = false);
+            }
+        }
+
+        if (now - this.lastWindChange > 6000) {
+            this.lastWindChange = now;
+            if (this.weatherState !== 'sunny') {
+                this.windForce = (Math.random() - 0.5) * 1.6;
+            } else {
+                this.windForce = (Math.random() - 0.5) * 0.4;
+            }
+        }
+
+        if (bird.feverActive) {
+            bird.xOffset = 0;
+        } else {
+            bird.velocity += (this.windForce * 0.08) * timeScale;
+            bird.xOffset = Math.sin(now * 0.0035) * (8 + Math.abs(this.windForce) * 7);
+        }
+
+        if (this.weatherState !== 'sunny') {
+            for (let i = 0; i < this.maxParticles; i++) {
+                const p = this.particles[i]!;
+                if (!p.active) {
+                    p.x = Math.random() * canvasWidth;
+                    p.y = -10;
+                    p.active = true;
+                    continue;
+                }
+
+                p.x += (p.vx + this.windForce * 2.2) * timeScale;
+                p.y += p.vy * timeScale;
+
+                if (p.y > canvasHeight || p.x < -20 || p.x > canvasWidth + 20) {
+                    p.active = false;
+                }
+            }
+        }
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        if (this.weatherState === 'sunny') return;
+        
+        ctx.save();
+        for (let i = 0; i < this.maxParticles; i++) {
+            const p = this.particles[i]!;
+            if (!p.active) continue;
+
+            if (this.weatherState === 'rainy') {
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = p.size;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + this.windForce * 4, p.y + 7);
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    public getSkyGradientColors(time: number): [string, string] {
+        let colorTop = '#ffccdf'; 
+        let colorBottom = '#a2e8dd';
+        const hour = time % 24;
+
+        if (hour > 16 && hour <= 19.5) {
+            colorTop = '#e17055';
+            colorBottom = '#6c5ce7';
+        } else if (hour > 19.5 || hour <= 4.5) {
+            colorTop = '#1a237e';
+            colorBottom = '#0f172a';
+        } else if (hour > 4.5 && hour <= 7.0) {
+            colorTop = '#a29bfe';
+            colorBottom = '#ffeaa7';
+        }
+
+        return [colorTop, colorBottom];
+    }
+
+    public getWeatherIcon(): string {
+        if (this.weatherState === 'rainy') return '🌧️';
+        if (this.weatherState === 'snowy') return '❄️';
+        return '☀️';
+    }
+
+    public getWindArrow(): string {
+        if (this.windForce > 0.4) return '→';
+        if (this.windForce < -0.4) return '←';
+        return '';
+    }
+}
 
 export class Pipe {
     public x: number;
@@ -805,6 +1141,245 @@ export class Pipe {
         return this.x + this.width + 30 < 0;
     }
 }
+export class BossBullet {
+    public x: number;
+    public y: number;
+    public vx: number;
+    public vy: number;
+    public radius: number = 7;
+    public active: boolean = true;
+
+    constructor(x: number, y: number, vx: number, vy: number) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+    }
+
+    public update(timeScale: number) {
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.fillStyle = '#ff7675';
+        ctx.strokeStyle = '#4a2c00';
+        ctx.lineWidth = 2.0;
+        
+        let rot = Math.PI / 2 * 3;
+        let x = 0;
+        let y = 0;
+        let step = Math.PI / 5;
+
+        ctx.beginPath();
+        ctx.moveTo(0, -7.5);
+        for (let i = 0; i < 5; i++) {
+            x = Math.cos(rot) * 7.5;
+            y = Math.sin(rot) * 7.5;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = Math.cos(rot) * 3.5;
+            y = Math.sin(rot) * 3.5;
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(0, -7.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+}
+
+export class PlayerMissile {
+    public x: number;
+    public y: number;
+    public vx: number = 8.5;
+    public radius: number = 6;
+    public active: boolean = true;
+
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public update(timeScale: number) {
+        this.x += this.vx * timeScale;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        ctx.fillStyle = '#74b9ff';
+        ctx.strokeStyle = '#4a2c00';
+        ctx.lineWidth = 2.0;
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#ffeaa7';
+        ctx.beginPath();
+        ctx.arc(-8, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+    }
+}
+
+export class BossGiant {
+    public x: number = 420;
+    public y: number = 180;
+    public width: number = 90;
+    public height: number = 130;
+    public hp: number = 100;
+    public maxHp: number = 100;
+    
+    private attackTimer: number = 0;
+    private hoverOffset: number = 0;
+    private damageFlashTimer: number = 0;
+
+    private offscreenCanvas: HTMLCanvasElement;
+    private offscreenCtx: CanvasRenderingContext2D;
+    private isDirty: boolean = true;
+
+    constructor() {
+        this.offscreenCanvas = document.createElement('canvas');
+        this.offscreenCanvas.width = this.width;
+        this.offscreenCanvas.height = this.height;
+        this.offscreenCtx = this.offscreenCanvas.getContext('2d')!;
+        this.hoverOffset = Math.random() * Math.PI * 2;
+    }
+
+    private renderToCache() {
+        const ctx = this.offscreenCtx;
+        ctx.clearRect(0, 0, this.width, this.height);
+
+        const isHurt = this.damageFlashTimer > 0;
+        const center = this.width / 2;
+        
+        ctx.fillStyle = '#fdcb6e';
+        ctx.strokeStyle = '#4a2c00';
+        ctx.lineWidth = 3.5;
+        
+        ctx.beginPath();
+        ctx.moveTo(center - 32, 45);
+        ctx.quadraticCurveTo(center - 45, 12, center - 20, 28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(center + 32, 45);
+        ctx.quadraticCurveTo(center + 45, 12, center + 20, 28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        const bodyGrad = ctx.createRadialGradient(center - 10, 50, 5, center, 65, 42);
+        bodyGrad.addColorStop(0, '#ffffff');
+        bodyGrad.addColorStop(0.3, isHurt ? '#ff7675' : '#ffeaa7');
+        bodyGrad.addColorStop(1, isHurt ? '#c0392b' : '#ff9f43');
+        ctx.fillStyle = bodyGrad;
+        
+        ctx.beginPath();
+        ctx.arc(center, 65, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#d63031';
+        ctx.beginPath();
+        ctx.moveTo(center - 16, 26);
+        ctx.lineTo(center - 24, 10);
+        ctx.lineTo(center, 18);
+        ctx.lineTo(center + 24, 10);
+        ctx.lineTo(center + 16, 26);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isHurt ? '#ffffff' : '#2c3e50';
+        ctx.beginPath();
+        ctx.arc(center - 14, 55, 7, 0, Math.PI * 2);
+        ctx.arc(center + 14, 55, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#d63031';
+        ctx.beginPath();
+        ctx.arc(center - 12, 55, 3, 0, Math.PI * 2);
+        ctx.arc(center + 16, 55, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 121, 121, 0.65)';
+        ctx.beginPath();
+        ctx.arc(center - 24, 68, 5, 0, Math.PI * 2);
+        ctx.arc(center + 24, 68, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(center - 20, 75, 40, 6);
+        ctx.strokeRect(center - 20, 75, 40, 6);
+
+        this.isDirty = false;
+    }
+
+    public update(
+        deltaTime: number, 
+        timeScale: number, 
+        birdY: number, 
+        canvasHeight: number,
+        onShootBullet: (vx: number, vy: number) => void
+    ) {
+        if (this.damageFlashTimer > 0) {
+            this.damageFlashTimer -= deltaTime;
+            if (this.damageFlashTimer <= 0) {
+                this.isDirty = true;
+            }
+        }
+
+        if (this.x > 290) {
+            this.x -= 1.6 * timeScale;
+        }
+
+        this.hoverOffset += 0.0038 * deltaTime;
+        this.y = (canvasHeight / 2 - 60) + Math.sin(this.hoverOffset * 2.2) * 58;
+
+        this.attackTimer += deltaTime;
+        if (this.attackTimer >= 1500) {
+            this.attackTimer %= 1500;
+            
+            const dx = 80 - this.x;
+            const dy = birdY - (this.y + 65);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            const speed = 4.2;
+            const vx = (dx / dist) * speed;
+            const vy = (dy / dist) * speed;
+
+            onShootBullet(vx, vy);
+        }
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        if (this.isDirty) {
+            this.renderToCache();
+        }
+        ctx.drawImage(this.offscreenCanvas, this.x, this.y);
+    }
+
+    public takeDamage(dmg: number) {
+        this.hp = Math.max(0, this.hp - dmg);
+        this.damageFlashTimer = 180;
+        this.isDirty = true;
+    }
+}
 
 export class Game {
     private ctx: CanvasRenderingContext2D;
@@ -812,6 +1387,7 @@ export class Game {
     private onStateChange: (state: GameState) => void;
     private onCoinCollected: () => void;
     private onCooldownUpdate: (remaining: number, duration: number) => void;
+    private onBossHpChange?: (hp: number, maxHp: number) => void;
     
     private score: number = 0;
     private state: GameState = 'READY';
@@ -824,6 +1400,17 @@ export class Game {
     private pipeSpawnTimer: number = 0;
     private audio: AudioManager = new AudioManager();
     private particles: GameParticle[] = [];
+
+    // Fever System State
+    private feverCombo: number = 0;
+    private coinSpawnTimer: number = 0;
+    private feverTimeAccumulator: number = 0;
+    private rainbowColors: string[] = [];
+
+    // Boss Battle State
+    private boss: BossGiant | null = null;
+    private bossBullets: BossBullet[] = [];
+    private playerMissiles: PlayerMissile[] = [];
 
     // Active skills duration timers (in ms)
     private shieldDurationRemaining: number = 0;
@@ -838,20 +1425,29 @@ export class Game {
     // Parallax Layers
     private bgLayers: BackgroundLayer[] = [];
     private groundX: number = 0;
+    private weather: WeatherSystem;
 
     constructor(
         canvas: HTMLCanvasElement, 
         onScoreChange: (score: number) => void,
         onStateChange: (state: GameState) => void,
         onCoinCollected: () => void,
-        onCooldownUpdate: (remaining: number, duration: number) => void
+        onCooldownUpdate: (remaining: number, duration: number) => void,
+        onBossHpChange?: (hp: number, maxHp: number) => void
     ) {
         this.ctx = canvas.getContext('2d')!;
         this.onScoreChange = onScoreChange;
         this.onStateChange = onStateChange;
         this.onCoinCollected = onCoinCollected;
         this.onCooldownUpdate = onCooldownUpdate;
+        this.onBossHpChange = onBossHpChange;
         
+        // Cache rainbow colors to prevent frame HSL string generation GC allocations
+        for (let i = 0; i < 360; i++) {
+            this.rainbowColors.push(`hsl(${i}, 95%, 85%)`);
+        }
+        
+        this.weather = new WeatherSystem(this.ctx.canvas.width, this.ctx.canvas.height);
         this.bird = new Bird(this.ctx.canvas.height);
         this.initBackground();
         
@@ -944,6 +1540,108 @@ export class Game {
         this.skillCooldownRemaining = char.cooldown;
     }
 
+    private spawnTextParticle(text: string, x: number, y: number, color: string = '#ffd32d') {
+        this.particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 0.9,
+            vy: -1.6 - Math.random() * 0.9,
+            size: 20,
+            alpha: 1.0,
+            color: color,
+            type: 'text',
+            text: text,
+            rotation: (Math.random() - 0.5) * 0.15,
+            rotSpeed: 0
+        });
+    }
+
+    private checkPerfectPass(pipe: Pipe) {
+        if (pipe.passed) return;
+        
+        const birdY = this.bird.y;
+        const gapCenter = pipe.topHeight + this.currentGap / 2;
+        const distance = Math.abs(birdY - gapCenter);
+
+        if (distance <= 22) {
+            this.feverCombo++;
+            this.spawnTextParticle("Perfect!", this.bird.x + this.bird.xOffset, this.bird.y - 20, '#ff7675');
+            if (this.feverCombo > 1) {
+                this.spawnTextParticle(`${this.feverCombo} Combo!`, this.bird.x + this.bird.xOffset, this.bird.y - 42, '#fecb2f');
+            }
+            
+            if (this.feverCombo >= 3 && !this.bird.feverActive) {
+                this.triggerFeverMode();
+            }
+        } else {
+            this.feverCombo = 0; // Reset combo if not perfect
+            this.spawnTextParticle("Good", this.bird.x + this.bird.xOffset, this.bird.y - 20, '#a29bfe');
+        }
+    }
+
+    private triggerFeverMode() {
+        this.bird.feverActive = true;
+        this.feverDurationRemaining = 5000; // 5 seconds fever mode
+        this.pipes = []; // Obliterate current pipes
+        this.audio.playExplode(); // Play blast sound for fever entry
+        
+        // Spawn colorful explosion particles
+        this.spawnParticleTrail(this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, 35, true);
+    }
+
+    private updateFeverCoins(deltaTime: number, timeScale: number) {
+        this.coinSpawnTimer += deltaTime;
+        const spawnInterval = 180; // 180ms intervals
+        
+        if (this.coinSpawnTimer >= spawnInterval) {
+            this.coinSpawnTimer %= spawnInterval;
+            
+            this.feverTimeAccumulator += deltaTime * 0.0053; 
+            const canvasWidth = this.ctx.canvas.width;
+            const centerY = this.ctx.canvas.height / 2;
+            const waveY = centerY + Math.sin(this.feverTimeAccumulator * 2.8) * 85;
+
+            this.coins.push(new Coin(canvasWidth, waveY));
+        }
+    }
+
+    private triggerBossFight() {
+        this.state = 'BOSS_FIGHT';
+        this.onStateChange('BOSS_FIGHT');
+        this.pipes = [];
+        this.boss = new BossGiant();
+        this.bossBullets = [];
+        this.playerMissiles = [];
+        if (this.onBossHpChange) {
+            this.onBossHpChange(100, 100);
+        }
+        this.audio.playExplode();
+        this.spawnTextParticle("WARNING!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 40, '#ff7675');
+        this.spawnTextParticle("BOSS APPEARED!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#fdcb6e');
+    }
+
+    private triggerBossDefeated() {
+        this.audio.playExplode();
+        for (let i = 0; i < 25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * 45 + 10;
+            const cx = this.boss!.x + this.boss!.width / 2 + Math.cos(angle) * dist;
+            const cy = this.boss!.y + this.boss!.height / 2 + Math.sin(angle) * dist;
+            this.coins.push(new Coin(cx, cy));
+        }
+        this.spawnParticleTrail(this.boss!.x + this.boss!.width / 2, this.boss!.y + this.boss!.height / 2, 45, true);
+        this.spawnTextParticle("VICTORY!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#55efc4');
+
+        this.boss = null;
+        this.bossBullets = [];
+        this.playerMissiles = [];
+        this.state = 'PLAYING';
+        this.onStateChange('PLAYING');
+        if (this.onBossHpChange) {
+            this.onBossHpChange(0, 100);
+        }
+    }
+
     private spawnParticleTrail(x: number, y: number, count: number = 1, isJump: boolean = false) {
         const types: ('heart' | 'star' | 'bubble')[] = ['heart', 'star', 'bubble'];
         const colors = isJump 
@@ -992,17 +1690,24 @@ export class Game {
         if (this.state === 'READY') {
             this.state = 'PLAYING';
             this.onStateChange('PLAYING');
+            this.audio.startBGM();
         }
         
         if (this.state === 'PLAYING') {
             this.bird.jump();
             this.audio.playJump();
             this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
+        } else if (this.state === 'BOSS_FIGHT') {
+            this.bird.jump();
+            this.audio.playJump();
+            this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
+            this.playerMissiles.push(new PlayerMissile(this.bird.x + this.bird.currentRadius, this.bird.y));
         } else if (this.state === 'GAME_OVER') {
             this.reset();
             this.state = 'PLAYING';
             this.onStateChange('PLAYING');
             this.audio.playJump();
+            this.audio.startBGM();
             this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
         }
     }
@@ -1018,6 +1723,14 @@ export class Game {
         this.score = 0;
         this.onScoreChange(0);
         this.pipeSpawnTimer = 0;
+
+        // Reset Boss Battle State
+        this.boss = null;
+        this.bossBullets = [];
+        this.playerMissiles = [];
+        if (this.onBossHpChange) {
+            this.onBossHpChange(0, 100);
+        }
         
         this.shieldDurationRemaining = 0;
         this.magnetDurationRemaining = 0;
@@ -1095,6 +1808,15 @@ export class Game {
         const timeScale = effectiveDelta / 16.67;
         const speed = this.state === 'GAME_OVER' ? 0 : this.currentSpeed;
         const gap = this.currentGap;
+
+        // Update BGM tempo and pitch factoring speed and fever state
+        if (this.state === 'PLAYING') {
+            const speedFactor = speed / GAME_SPEED;
+            this.audio.updateBGMTempo(speedFactor, this.bird.feverActive);
+        }
+
+        // Update weather and apply wind forces (Object Pooling particles & deltaTime wind physics)
+        this.weather.update(deltaTime, timeScale, this.ctx.canvas.width, this.ctx.canvas.height, this.bird);
 
         // Update Backgrounds
         this.bgLayers.forEach(layer => {
@@ -1231,7 +1953,106 @@ export class Game {
             }
         }
 
-        if (this.state !== 'PLAYING') return;
+        if (this.state === 'PLAYING' && this.score >= 30 && this.boss === null) {
+            this.triggerBossFight();
+        }
+
+        if (this.state !== 'PLAYING' && this.state !== 'BOSS_FIGHT') return;
+
+        // Update Boss fight entities
+        if (this.state === 'BOSS_FIGHT' && this.boss) {
+            this.boss.update(deltaTime, timeScale, this.bird.y, this.ctx.canvas.height, (vx, vy) => {
+                this.bossBullets.push(new BossBullet(this.boss!.x, this.boss!.y + 65, vx, vy));
+            });
+
+            // Update Boss bullets (aimed projectiles)
+            for (let i = this.bossBullets.length - 1; i >= 0; i--) {
+                const b = this.bossBullets[i]!;
+                b.update(timeScale);
+
+                if (b.active) {
+                    const dx = (this.bird.x + this.bird.xOffset) - b.x;
+                    const dy = this.bird.y - b.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < this.bird.currentRadius + b.radius) {
+                        b.active = false;
+                        this.bossBullets.splice(i, 1);
+
+                        if (this.bird.shieldActive) {
+                            this.bird.shieldActive = false;
+                            this.shieldDurationRemaining = 0;
+                            this.audio.playShieldBreak();
+                            this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
+                        } else {
+                            this.state = 'GAME_OVER';
+                            this.onStateChange('GAME_OVER');
+                            this.audio.playHit();
+                            this.audio.stopBGM();
+                            this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
+                            return;
+                        }
+                        continue;
+                    }
+                }
+
+                if (b.x < -20 || b.x > this.ctx.canvas.width + 20 || b.y < -20 || b.y > this.ctx.canvas.height + 20) {
+                    this.bossBullets.splice(i, 1);
+                }
+            }
+
+            // Update player missiles
+            for (let i = this.playerMissiles.length - 1; i >= 0; i--) {
+                const m = this.playerMissiles[i]!;
+                m.update(timeScale);
+
+                const dx = m.x - (this.boss.x + this.boss.width / 2);
+                const dy = m.y - (this.boss.y + this.boss.height / 2);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < m.radius + 40) { // Hitbox detection
+                    this.boss.takeDamage(4);
+                    this.audio.playScore();
+                    this.spawnParticleTrail(m.x, m.y, 4, true);
+                    this.playerMissiles.splice(i, 1);
+                    
+                    if (this.onBossHpChange) {
+                        this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                    }
+
+                    if (this.boss.hp <= 0) {
+                        this.triggerBossDefeated();
+                    }
+                    continue;
+                }
+
+                if (m.x > this.ctx.canvas.width + 20) {
+                    this.playerMissiles.splice(i, 1);
+                }
+            }
+
+            // Direct collision check: bird with boss body
+            const dx = (this.bird.x + this.bird.xOffset) - (this.boss.x + this.boss.width / 2);
+            const dy = this.bird.y - (this.boss.y + this.boss.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.bird.currentRadius + 38) {
+                if (this.bird.shieldActive) {
+                    this.bird.shieldActive = false;
+                    this.shieldDurationRemaining = 0;
+                    this.audio.playShieldBreak();
+                    this.boss.takeDamage(15);
+                    this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
+                    if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                    if (this.boss.hp <= 0) this.triggerBossDefeated();
+                } else {
+                    this.state = 'GAME_OVER';
+                    this.onStateChange('GAME_OVER');
+                    this.audio.playHit();
+                    this.audio.stopBGM();
+                    this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
+                    return;
+                }
+            }
+        }
 
         this.bird.update(timeScale);
 
@@ -1261,22 +2082,28 @@ export class Game {
                 this.state = 'GAME_OVER';
                 this.onStateChange('GAME_OVER');
                 this.audio.playHit();
+                this.audio.stopBGM();
                 this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
                 return;
             }
         }
 
-        this.pipeSpawnTimer += deltaTime;
-        const baseInterval = Math.max(1100, PIPE_SPAWN_INTERVAL - (this.score * 18));
-        if (this.pipeSpawnTimer > baseInterval) {
-            const newPipe = new Pipe(this.ctx.canvas.width, this.ctx.canvas.height, gap, this.score);
-            this.pipes.push(newPipe);
+        if (this.bird.feverActive) {
             this.pipeSpawnTimer = 0;
+            this.updateFeverCoins(deltaTime, timeScale);
+        } else {
+            this.pipeSpawnTimer += deltaTime;
+            const baseInterval = Math.max(1100, PIPE_SPAWN_INTERVAL - (this.score * 18));
+            if (this.pipeSpawnTimer > baseInterval) {
+                const newPipe = new Pipe(this.ctx.canvas.width, this.ctx.canvas.height, gap, this.score);
+                this.pipes.push(newPipe);
+                this.pipeSpawnTimer = 0;
 
-            // 45% chance to spawn star coin in the gap
-            if (Math.random() < 0.45) {
-                const coinY = newPipe.topHeight + gap / 2;
-                this.coins.push(new Coin(this.ctx.canvas.width + newPipe.width / 2, coinY));
+                // 45% chance to spawn star coin in the gap
+                if (Math.random() < 0.45) {
+                    const coinY = newPipe.topHeight + gap / 2;
+                    this.coins.push(new Coin(this.ctx.canvas.width + newPipe.width / 2, coinY));
+                }
             }
         }
 
@@ -1285,6 +2112,7 @@ export class Game {
             pipe.update(speed, timeScale, this.ctx.canvas.height, gap);
 
             if (!pipe.passed && pipe.x + pipe.width < this.bird.x + this.bird.xOffset) {
+                this.checkPerfectPass(pipe);
                 pipe.passed = true;
                 this.score++;
                 this.onScoreChange(this.score);
@@ -1305,10 +2133,20 @@ export class Game {
 
         // 1. Sky Gradient
         const skyGrad = this.ctx.createLinearGradient(0, 0, 0, height);
-        skyGrad.addColorStop(0, '#ffccdf'); 
-        skyGrad.addColorStop(0.4, '#ffeef4'); 
-        skyGrad.addColorStop(0.8, '#dff9fb'); 
-        skyGrad.addColorStop(1, '#a2e8dd'); 
+        if (this.bird.feverActive) {
+            const offset = Math.floor(performance.now() * 0.12) % 360;
+            const col1 = this.rainbowColors[offset]!;
+            const col2 = this.rainbowColors[(offset + 120) % 360]!;
+            const col3 = this.rainbowColors[(offset + 240) % 360]!;
+            skyGrad.addColorStop(0, col1);
+            skyGrad.addColorStop(0.5, col2);
+            skyGrad.addColorStop(1, col3);
+        } else {
+            const timeVal = (performance.now() * 0.00004) % 24;
+            const [colTop, colBottom] = this.weather.getSkyGradientColors(timeVal);
+            skyGrad.addColorStop(0, colTop); 
+            skyGrad.addColorStop(1, colBottom); 
+        }
         this.ctx.fillStyle = skyGrad;
         this.ctx.fillRect(0, 0, width, height);
 
@@ -1361,16 +2199,36 @@ export class Game {
         // 4. Pipes
         this.pipes.forEach(pipe => pipe.draw(this.ctx, height, gap));
 
+        // Boss Battle graphics (Offscreen cache rendering applied)
+        if (this.state === 'BOSS_FIGHT' && this.boss) {
+            this.boss.draw(this.ctx);
+            this.bossBullets.forEach(bullet => bullet.draw(this.ctx));
+            this.playerMissiles.forEach(missile => missile.draw(this.ctx));
+        }
+
         // 5. Particles
         this.drawParticles();
 
-        // 6. Ground
+        // 6. Weather particles (rain / snow)
+        this.weather.draw(this.ctx);
+
+        // 7. Ground
         this.drawGround(width, height);
 
-        // 7. Bird
+        // 8. Bird
         this.bird.draw(this.ctx);
 
-        // 8. Ready text
+        // 9. Weather Indicator (Canvas top-right corner)
+        if (this.state === 'PLAYING' || this.state === 'BOSS_FIGHT') {
+            this.ctx.fillStyle = 'rgba(74, 44, 0, 0.75)';
+            this.ctx.font = 'bold 15px "Fredoka", sans-serif';
+            this.ctx.textAlign = 'right';
+            const icon = this.weather.getWeatherIcon();
+            const wind = this.weather.getWindArrow();
+            this.ctx.fillText(`${icon} ${wind}`, width - 15, 30);
+        }
+
+        // 10. Ready text
         if (this.state === 'READY') {
             this.ctx.fillStyle = 'rgba(26, 26, 36, 0.45)';
             this.ctx.fillRect(0, 0, width, height);
@@ -1383,6 +2241,7 @@ export class Game {
             this.ctx.fillText('SWEET FLAPPY', width / 2, height / 2 - 25);
             
             this.ctx.font = 'bold 15px "Nunito", sans-serif';
+            this.ctx.textAlign = 'center';
             this.ctx.shadowBlur = 0;
             this.ctx.fillStyle = '#ffeaa7';
             this.ctx.fillText('🍭 TAP OR SPACE TO JUMP 🍭', width / 2, height / 2 + 25);
@@ -1433,7 +2292,15 @@ export class Game {
             this.ctx.fillStyle = p.color;
             this.ctx.strokeStyle = p.color;
 
-            if (p.type === 'heart') {
+            if (p.type === 'text' && p.text) {
+                this.ctx.font = 'bold 22px "Fredoka", "Arial Black", sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillStyle = p.color;
+                this.ctx.strokeStyle = '#4a2c00';
+                this.ctx.lineWidth = 3.5;
+                this.ctx.strokeText(p.text, 0, 0);
+                this.ctx.fillText(p.text, 0, 0);
+            } else if (p.type === 'heart') {
                 drawHeart(this.ctx, 0, -p.size/2, p.size);
                 this.ctx.fill();
             } else if (p.type === 'star') {
