@@ -28,104 +28,56 @@ export const CHARACTERS: Character[] = [
         wingColor: '#ffffff',
         beakColor: '#ff9f43',
         skillName: 'COIN MAGNET',
-        skillDesc: 'PASSIVE: COIN MAGNET RADIUS IS 1.5X WIDER',
+        skillDesc: 'PASSIVE: 상시 코인 자석 범위 확대 (90px)',
         cooldown: 0
     },
     {
         id: 'cherry',
         name: 'CHERRY',
-        price: 15,
+        price: 20,
         color: '#ff7675', // Strawberry pink
         cheekColor: 'rgba(255, 234, 167, 0.8)',
         wingColor: '#fff275',
         beakColor: '#ffeaa7',
         skillName: 'CANDY BLAST',
-        skillDesc: 'ACTIVE: DESTROY ALL PIPES ON THE SCREEN (SHFT/S)',
-        cooldown: 22000 // 22 seconds
+        skillDesc: 'ACTIVE: 화면 내 모든 파이프 파괴 및 보너스 (S/Shift)',
+        cooldown: 22000
     },
     {
         id: 'berry',
         name: 'BERRY',
-        price: 30,
+        price: 40,
         color: '#74b9ff', // Blueberry blue
         cheekColor: 'rgba(255, 102, 102, 0.65)',
         wingColor: '#a29bfe',
         beakColor: '#fdcb6e',
         skillName: 'STAR SHIELD',
-        skillDesc: 'ACTIVE: 3.5S SHIELD THAT BLOCKS 1 COLLISION (SHFT/S)',
-        cooldown: 25000 // 25 seconds
+        skillDesc: 'ACTIVE: 4.5초 보호막 생성, 충돌 1회 무시 (S/Shift)',
+        cooldown: 24000
     },
     {
         id: 'mango',
         name: 'MANGO',
-        price: 45,
+        price: 60,
         color: '#ffeaa7', // Mango cream orange
         cheekColor: 'rgba(255, 102, 102, 0.70)',
         wingColor: '#ff9f43',
         beakColor: '#d63031',
-        skillName: 'HONEY MAGNET',
-        skillDesc: 'ACTIVE: ATTRACT ALL COINS FOR 5 SECONDS (SHFT/S)',
-        cooldown: 16000 // 16 seconds
-    },
-    {
-        id: 'kiwi',
-        name: 'KIWI',
-        price: 60,
-        color: '#8baf3a', // Kiwi green
-        cheekColor: 'rgba(241, 196, 15, 0.5)', // Yellow gold
-        wingColor: '#c4e538',
-        beakColor: '#d2dae2',
-        skillName: 'MINI SHIFT',
-        skillDesc: 'ACTIVE: SHRINK BIRD SIZE BY 40% FOR 4S (SHFT/S)',
-        cooldown: 18000 // 18 seconds
-    },
-    {
-        id: 'minty',
-        name: 'MINTY',
-        price: 75,
-        color: '#1dd1a1', // Mint green
-        cheekColor: 'rgba(255, 255, 255, 0.7)',
-        wingColor: '#a8e6cf',
-        beakColor: '#48dbfb',
-        skillName: 'MINT BREEZE',
-        skillDesc: 'ACTIVE: SLOW DOWN TIME BY 50% FOR 2.5S (SHFT/S)',
-        cooldown: 20000 // 20 seconds
-    },
-    {
-        id: 'lemon',
-        name: 'LEMON',
-        price: 90,
-        color: '#ffd32d', // Lemon yellow
-        cheekColor: 'rgba(255, 121, 121, 0.6)',
-        wingColor: '#fff200',
-        beakColor: '#ff7675',
-        skillName: 'ZESTY FLASH',
-        skillDesc: 'ACTIVE: DASH FORWARD 140PX WITH INVINCIBILITY (SHFT/S)',
-        cooldown: 22000 // 22 seconds
-    },
-    {
-        id: 'choco',
-        name: 'CHOCO',
-        price: 105,
-        color: '#6f4e37', // Milk chocolate brown
-        cheekColor: 'rgba(255, 234, 167, 0.65)',
-        wingColor: '#a1887f',
-        beakColor: '#fdcb6e',
-        skillName: 'CHOCO GLIDE',
-        skillDesc: 'ACTIVE: REDUCE GRAVITY BY 75% FOR 3.5S (SHFT/S)',
-        cooldown: 15000 // 15 seconds
+        skillName: 'HONEY RUSH',
+        skillDesc: 'ACTIVE: 1.5초간 무적 돌진 & 자석 흡입 (S/Shift)',
+        cooldown: 18000
     },
     {
         id: 'plum',
         name: 'PLUM',
-        price: 120,
+        price: 80,
         color: '#9c27b0', // Plum purple
         cheekColor: 'rgba(255, 118, 117, 0.65)',
         wingColor: '#e040fb',
         beakColor: '#feca57',
         skillName: 'JUICY FEVER',
-        skillDesc: 'ACTIVE: 2X COINS & COIN MAGNET FOR 5S (SHFT/S)',
-        cooldown: 25000 // 25 seconds
+        skillDesc: 'ACTIVE: 즉시 5초간 피버 모드 & 코인 2배 (S/Shift)',
+        cooldown: 26000
     }
 ];
 
@@ -565,6 +517,88 @@ export class Coin {
     }
 }
 
+export class ItemBox {
+    public x: number;
+    public y: number;
+    public width: number = 24;
+    public height: number = 24;
+    public collected: boolean = false;
+    public type: 'magnet' | 'shield' | 'double' | 'fever_drink';
+    private bounceOffset: number = Math.random() * Math.PI * 2;
+
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
+        const types: ('magnet' | 'shield' | 'double' | 'fever_drink')[] = ['magnet', 'shield', 'double', 'fever_drink'];
+        this.type = types[Math.floor(Math.random() * types.length)]!;
+    }
+
+    public update(speed: number, timeScale: number) {
+        this.x -= speed * timeScale;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D) {
+        if (this.collected) return;
+        ctx.save();
+        const bounce = Math.sin(performance.now() * 0.004 + this.bounceOffset) * 5;
+        ctx.translate(this.x, this.y + bounce);
+
+        // Draw Gift Box base
+        ctx.fillStyle = '#ff7675'; // Pink/Red box
+        ctx.strokeStyle = '#2d3436';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw Box Lid
+        ctx.fillStyle = '#ff7675';
+        ctx.beginPath();
+        ctx.rect(-this.width / 2 - 2, -this.height / 2 - 4, this.width + 4, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw ribbon (Cross style)
+        ctx.fillStyle = '#feca57'; // Gold Ribbon
+        // Vertical Ribbon
+        ctx.beginPath();
+        ctx.rect(-3, -this.height / 2, 6, this.height);
+        ctx.fill();
+        // Horizontal Ribbon
+        ctx.beginPath();
+        ctx.rect(-this.width / 2, -3, this.width, 6);
+        ctx.fill();
+
+        // Ribbon Bow on top
+        ctx.fillStyle = '#feca57';
+        ctx.beginPath();
+        ctx.ellipse(-6, -this.height / 2 - 6, 5, 3, -Math.PI / 4, 0, Math.PI * 2);
+        ctx.ellipse(6, -this.height / 2 - 6, 5, 3, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw icon inside
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let icon = '?';
+        if (this.type === 'magnet') icon = 'M';
+        else if (this.type === 'shield') icon = 'S';
+        else if (this.type === 'double') icon = '2X';
+        else if (this.type === 'fever_drink') icon = 'F';
+        
+        ctx.fillText(icon, 0, 1);
+
+        ctx.restore();
+    }
+
+    public isOffScreen(): boolean {
+        return this.x + this.width < 0;
+    }
+}
+
 export class Bird {
     public x: number = 80;
     public y: number;
@@ -580,10 +614,8 @@ export class Bird {
     public magnetActive: boolean = false;
 
     // New active status
-    public kiwiActive: boolean = false;
     public dashActive: boolean = false;
     public xOffset: number = 0;
-    public glideActive: boolean = false;
     public feverActive: boolean = false;
 
     constructor(canvasHeight: number) {
@@ -591,7 +623,7 @@ export class Bird {
     }
 
     public get currentRadius(): number {
-        return this.kiwiActive ? this.radius * 0.6 : this.radius;
+        return this.radius;
     }
 
     public update(timeScale: number, isReady: boolean = false) {
@@ -600,8 +632,7 @@ export class Bird {
             this.velocity = 0;
             this.rotation = 0;
         } else {
-            const gravityModifier = this.glideActive ? 0.25 : 1.0;
-            this.velocity += GRAVITY * gravityModifier * timeScale;
+            this.velocity += GRAVITY * timeScale;
             this.y += this.velocity * timeScale;
             this.wingAngle += this.wingFlapSpeed * timeScale;
             this.rotation = Math.min(Math.PI / 2.2, Math.max(-Math.PI / 5, (this.velocity * 0.08)));
@@ -1388,6 +1419,7 @@ export class Game {
     private onCoinCollected: () => void;
     private onCooldownUpdate: (remaining: number, duration: number) => void;
     private onBossHpChange?: (hp: number, maxHp: number) => void;
+    private onFeverGaugeChange: (gauge: number) => void;
     
     private score: number = 0;
     private state: GameState = 'READY';
@@ -1397,11 +1429,13 @@ export class Game {
     private bird: Bird;
     private pipes: Pipe[] = [];
     private coins: Coin[] = [];
+    private itemBoxes: ItemBox[] = [];
     private pipeSpawnTimer: number = 0;
     private audio: AudioManager = new AudioManager();
     private particles: GameParticle[] = [];
 
     // Fever System State
+    private feverGauge: number = 0;
     private feverCombo: number = 0;
     private coinSpawnTimer: number = 0;
     private feverTimeAccumulator: number = 0;
@@ -1415,11 +1449,9 @@ export class Game {
     // Active skills duration timers (in ms)
     private shieldDurationRemaining: number = 0;
     private magnetDurationRemaining: number = 0;
-    private kiwiDurationRemaining: number = 0;
-    private mintDurationRemaining: number = 0;
     private dashDurationRemaining: number = 0;
-    private chocoDurationRemaining: number = 0;
     private feverDurationRemaining: number = 0;
+    private itemDoubleCoinRemaining: number = 0;
     private skillCooldownRemaining: number = 0;
 
     // Parallax Layers
@@ -1433,7 +1465,8 @@ export class Game {
         onStateChange: (state: GameState) => void,
         onCoinCollected: () => void,
         onCooldownUpdate: (remaining: number, duration: number) => void,
-        onBossHpChange?: (hp: number, maxHp: number) => void
+        onBossHpChange: ((hp: number, maxHp: number) => void) | undefined,
+        onFeverGaugeChange: (gauge: number) => void
     ) {
         this.ctx = canvas.getContext('2d')!;
         this.onScoreChange = onScoreChange;
@@ -1441,6 +1474,7 @@ export class Game {
         this.onCoinCollected = onCoinCollected;
         this.onCooldownUpdate = onCooldownUpdate;
         this.onBossHpChange = onBossHpChange;
+        this.onFeverGaugeChange = onFeverGaugeChange;
         
         // Cache rainbow colors to prevent frame HSL string generation GC allocations
         for (let i = 0; i < 360; i++) {
@@ -1487,54 +1521,44 @@ export class Game {
         if (!char || char.cooldown === 0) return; // passive or none
 
         if (char.id === 'cherry') {
-            // Candy Blast - obliterate all current pipes with cute cherry heart explosion
+            // Candy Blast - 모든 파이프 파괴 & 개당 보너스 1점, 1코인 추가
             if (this.pipes.length > 0) {
                 this.audio.playExplode();
+                const bonus = this.pipes.length;
+                this.score += bonus;
+                this.onScoreChange(this.score);
+                
+                // Add coins
+                const currentCoins = Number(localStorage.getItem('flappy-candy-coins') || 0);
+                localStorage.setItem('flappy-candy-coins', (currentCoins + bonus).toString());
+                this.onCoinCollected();
+
                 this.pipes.forEach(pipe => {
                     this.spawnParticleTrail(pipe.x + pipe.width / 2, this.ctx.canvas.height / 2, 14, true);
+                    this.spawnTextParticle("+1 Coin & Score!", pipe.x + pipe.width / 2, this.ctx.canvas.height / 2, '#ff7675');
                 });
                 this.pipes = [];
             }
         } else if (char.id === 'berry') {
-            // Star Shield
+            // Star Shield - 4.5초 보호막
             this.bird.shieldActive = true;
-            this.shieldDurationRemaining = 3500; // 3.5 seconds
-            this.audio.playScore(); 
+            this.shieldDurationRemaining = 4500;
+            this.audio.playScore();
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 10, true);
         } else if (char.id === 'mango') {
-            // Honey Magnet
-            this.bird.magnetActive = true;
-            this.magnetDurationRemaining = 5000; // 5 seconds
-            this.audio.playScore();
-        } else if (char.id === 'kiwi') {
-            // Mini Shift
-            this.bird.kiwiActive = true;
-            this.kiwiDurationRemaining = 4000; // 4 seconds
-            this.audio.playScore();
-            this.spawnParticleTrail(this.bird.x, this.bird.y, 8, true);
-        } else if (char.id === 'minty') {
-            // Mint Breeze (Slow motion)
-            this.mintDurationRemaining = 2500; // 2.5 seconds
-            this.audio.playSlow();
-            this.spawnParticleTrail(this.bird.x, this.bird.y, 8, true);
-        } else if (char.id === 'lemon') {
-            // Zesty Flash
+            // Honey Rush - 1.5초간 무적 대시 + 코인 자석
             this.bird.dashActive = true;
-            this.bird.xOffset = 140; // Dash forward 140px
-            this.dashDurationRemaining = 200; // 0.2 seconds dash duration
+            this.bird.magnetActive = true;
+            this.dashDurationRemaining = 1500;
+            this.magnetDurationRemaining = 1500;
+            this.bird.xOffset = 180;
             this.audio.playDash();
-            this.spawnParticleTrail(this.bird.x, this.bird.y, 16, true);
-        } else if (char.id === 'choco') {
-            // Choco Glide (Float gravity)
-            this.bird.glideActive = true;
-            this.chocoDurationRemaining = 3500; // 3.5 seconds
-            this.audio.playScore();
-            this.spawnParticleTrail(this.bird.x, this.bird.y, 6, true);
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 20, true);
         } else if (char.id === 'plum') {
-            // Juicy Fever (Fever Time)
-            this.bird.feverActive = true;
-            this.feverDurationRemaining = 5000; // 5 seconds
-            this.audio.playScore();
-            this.spawnParticleTrail(this.bird.x, this.bird.y, 12, true);
+            // Juicy Fever - 즉시 5초 피버 및 코인 2배
+            this.triggerFeverMode();
+            this.itemDoubleCoinRemaining = 5000;
+            this.spawnParticleTrail(this.bird.x, this.bird.y, 16, true);
         }
 
         this.skillCooldownRemaining = char.cooldown;
@@ -1570,18 +1594,32 @@ export class Game {
                 this.spawnTextParticle(`${this.feverCombo} Combo!`, this.bird.x + this.bird.xOffset, this.bird.y - 42, '#fecb2f');
             }
             
-            if (this.feverCombo >= 3 && !this.bird.feverActive) {
-                this.triggerFeverMode();
+            if (!this.bird.feverActive) {
+                this.feverGauge = Math.min(100, this.feverGauge + 25);
+                this.onFeverGaugeChange(this.feverGauge);
+                if (this.feverGauge >= 100) {
+                    this.triggerFeverMode();
+                }
             }
         } else {
             this.feverCombo = 0; // Reset combo if not perfect
             this.spawnTextParticle("Good", this.bird.x + this.bird.xOffset, this.bird.y - 20, '#a29bfe');
+
+            if (!this.bird.feverActive) {
+                this.feverGauge = Math.min(100, this.feverGauge + 5);
+                this.onFeverGaugeChange(this.feverGauge);
+                if (this.feverGauge >= 100) {
+                    this.triggerFeverMode();
+                }
+            }
         }
     }
 
     private triggerFeverMode() {
         this.bird.feverActive = true;
         this.feverDurationRemaining = 5000; // 5 seconds fever mode
+        this.feverGauge = 100;
+        this.onFeverGaugeChange(100);
         this.pipes = []; // Obliterate current pipes
         this.audio.playExplode(); // Play blast sound for fever entry
         
@@ -1719,6 +1757,7 @@ export class Game {
         
         this.pipes = [];
         this.coins = [];
+        this.itemBoxes = [];
         this.particles = [];
         this.score = 0;
         this.onScoreChange(0);
@@ -1734,11 +1773,11 @@ export class Game {
         
         this.shieldDurationRemaining = 0;
         this.magnetDurationRemaining = 0;
-        this.kiwiDurationRemaining = 0;
-        this.mintDurationRemaining = 0;
         this.dashDurationRemaining = 0;
-        this.chocoDurationRemaining = 0;
         this.feverDurationRemaining = 0;
+        this.itemDoubleCoinRemaining = 0;
+        this.feverGauge = 0;
+        this.onFeverGaugeChange(0);
         this.skillCooldownRemaining = 0;
         this.onCooldownUpdate(0, 1);
     }
@@ -1799,13 +1838,7 @@ export class Game {
     }
 
     private update(deltaTime: number) {
-        let effectiveDelta = deltaTime;
-        if (this.state === 'PLAYING' && this.mintDurationRemaining > 0) {
-            this.mintDurationRemaining = Math.max(0, this.mintDurationRemaining - deltaTime);
-            effectiveDelta = deltaTime * 0.5; // 50% slow motion
-        }
-
-        const timeScale = effectiveDelta / 16.67;
+        const timeScale = deltaTime / 16.67;
         const speed = this.state === 'GAME_OVER' ? 0 : this.currentSpeed;
         const gap = this.currentGap;
 
@@ -1841,12 +1874,6 @@ export class Game {
                     this.bird.magnetActive = false;
                 }
             }
-            if (this.kiwiDurationRemaining > 0) {
-                this.kiwiDurationRemaining = Math.max(0, this.kiwiDurationRemaining - deltaTime);
-                if (this.kiwiDurationRemaining === 0) {
-                    this.bird.kiwiActive = false;
-                }
-            }
             if (this.dashDurationRemaining > 0) {
                 this.dashDurationRemaining = Math.max(0, this.dashDurationRemaining - deltaTime);
                 if (this.dashDurationRemaining === 0) {
@@ -1854,19 +1881,20 @@ export class Game {
                 }
             }
             if (this.bird.xOffset > 0) {
-                this.bird.xOffset = Math.max(0, this.bird.xOffset - effectiveDelta * 0.55); // Slide back smoothly
-            }
-            if (this.chocoDurationRemaining > 0) {
-                this.chocoDurationRemaining = Math.max(0, this.chocoDurationRemaining - deltaTime);
-                if (this.chocoDurationRemaining === 0) {
-                    this.bird.glideActive = false;
-                }
+                this.bird.xOffset = Math.max(0, this.bird.xOffset - deltaTime * 0.55); // Slide back smoothly
             }
             if (this.feverDurationRemaining > 0) {
                 this.feverDurationRemaining = Math.max(0, this.feverDurationRemaining - deltaTime);
+                this.feverGauge = (this.feverDurationRemaining / 5000) * 100;
+                this.onFeverGaugeChange(this.feverGauge);
                 if (this.feverDurationRemaining === 0) {
                     this.bird.feverActive = false;
+                    this.feverGauge = 0;
+                    this.onFeverGaugeChange(0);
                 }
+            }
+            if (this.itemDoubleCoinRemaining > 0) {
+                this.itemDoubleCoinRemaining = Math.max(0, this.itemDoubleCoinRemaining - deltaTime);
             }
             
             if (this.skillCooldownRemaining > 0) {
@@ -1906,13 +1934,13 @@ export class Game {
 
             if (this.bird.magnetActive || this.bird.feverActive) {
                 pullSpeed = 7.5;
-                pullRadius = 150;
+                pullRadius = this.bird.characterId === 'mango' ? 220 : 150;
             } else if (this.bird.dashActive) {
                 pullSpeed = 16.0; // ultra fast pull during dash
-                pullRadius = 180;
+                pullRadius = 240;
             } else if (this.bird.characterId === 'goldy') {
                 pullSpeed = 3.2;
-                pullRadius = 60; // goldy has passive magnetic range
+                pullRadius = 90; // goldy has passive magnetic range
             }
 
             if (pullRadius > 0 && !coin.collected && this.state === 'PLAYING') {
@@ -1940,9 +1968,20 @@ export class Game {
                     // Score coin!
                     this.audio.playCoin();
                     const totalCoins = Number(localStorage.getItem('flappy-candy-coins') || 0);
-                    const gain = this.bird.feverActive ? 2 : 1; // Plum gives 2x coins
+                    const doubleActive = (this.bird.feverActive && this.bird.characterId === 'plum') || (this.itemDoubleCoinRemaining > 0);
+                    const gain = doubleActive ? 2 : 1;
                     localStorage.setItem('flappy-candy-coins', String(totalCoins + gain));
                     this.onCoinCollected();
+
+                    // Increase Fever Gauge
+                    if (!this.bird.feverActive) {
+                        this.feverGauge = Math.min(100, this.feverGauge + 4);
+                        this.onFeverGaugeChange(this.feverGauge);
+                        if (this.feverGauge >= 100) {
+                            this.triggerFeverMode();
+                        }
+                    }
+
                     this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 5, true);
                     continue;
                 }
@@ -1950,6 +1989,54 @@ export class Game {
 
             if (coin.isOffScreen()) {
                 this.coins.splice(i, 1);
+            }
+        }
+
+        // Update and Collide with Item Boxes
+        for (let i = this.itemBoxes.length - 1; i >= 0; i--) {
+            const box = this.itemBoxes[i]!;
+            box.update(speed, timeScale);
+
+            // Collide with bird
+            if (!box.collected && this.state === 'PLAYING') {
+                const dx = (this.bird.x + this.bird.xOffset) - box.x;
+                const dy = this.bird.y - box.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < this.bird.currentRadius + box.width / 2 + 4) {
+                    box.collected = true;
+                    this.itemBoxes.splice(i, 1);
+
+                    this.audio.playScore(); // Item get sound
+                    
+                    let text = "";
+                    if (box.type === 'magnet') {
+                        this.bird.magnetActive = true;
+                        this.magnetDurationRemaining = 5000;
+                        text = "MAGNET!";
+                    } else if (box.type === 'shield') {
+                        this.bird.shieldActive = true;
+                        this.shieldDurationRemaining = 5000;
+                        text = "SHIELD!";
+                    } else if (box.type === 'double') {
+                        this.itemDoubleCoinRemaining = 5000;
+                        text = "DOUBLE COIN!";
+                    } else if (box.type === 'fever_drink') {
+                        this.feverGauge = Math.min(100, this.feverGauge + 40);
+                        this.onFeverGaugeChange(this.feverGauge);
+                        text = "FEVER DRINK!";
+                        if (this.feverGauge >= 100) {
+                            this.triggerFeverMode();
+                        }
+                    }
+
+                    this.spawnTextParticle(text, this.bird.x + this.bird.xOffset, this.bird.y - 30, '#feca57');
+                    this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 8, true);
+                    continue;
+                }
+            }
+
+            if (box.isOffScreen()) {
+                this.itemBoxes.splice(i, 1);
             }
         }
 
@@ -2011,6 +2098,16 @@ export class Game {
                 
                 if (dist < m.radius + 40) { // Hitbox detection
                     this.boss.takeDamage(4);
+                    
+                    // Add fever gauge on hit
+                    if (!this.bird.feverActive) {
+                        this.feverGauge = Math.min(100, this.feverGauge + 2);
+                        this.onFeverGaugeChange(this.feverGauge);
+                        if (this.feverGauge >= 100) {
+                            this.triggerFeverMode();
+                        }
+                    }
+
                     this.audio.playScore();
                     this.spawnParticleTrail(m.x, m.y, 4, true);
                     this.playerMissiles.splice(i, 1);
@@ -2040,6 +2137,16 @@ export class Game {
                     this.shieldDurationRemaining = 0;
                     this.audio.playShieldBreak();
                     this.boss.takeDamage(15);
+
+                    // Add fever gauge on shield slam
+                    if (!this.bird.feverActive) {
+                        this.feverGauge = Math.min(100, this.feverGauge + 10);
+                        this.onFeverGaugeChange(this.feverGauge);
+                        if (this.feverGauge >= 100) {
+                            this.triggerFeverMode();
+                        }
+                    }
+
                     this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
                     if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
                     if (this.boss.hp <= 0) this.triggerBossDefeated();
@@ -2103,6 +2210,10 @@ export class Game {
                 if (Math.random() < 0.45) {
                     const coinY = newPipe.topHeight + gap / 2;
                     this.coins.push(new Coin(this.ctx.canvas.width + newPipe.width / 2, coinY));
+                } else if (Math.random() < 0.20) {
+                    // 20% chance to spawn item box in the gap if coin is not spawned
+                    const boxY = newPipe.topHeight + gap / 2;
+                    this.itemBoxes.push(new ItemBox(this.ctx.canvas.width + newPipe.width / 2, boxY));
                 }
             }
         }
@@ -2193,8 +2304,9 @@ export class Game {
             }
         });
 
-        // 3. Coins
+        // 3. Coins & Item Boxes
         this.coins.forEach(coin => coin.draw(this.ctx));
+        this.itemBoxes.forEach(box => box.draw(this.ctx));
 
         // 4. Pipes
         this.pipes.forEach(pipe => pipe.draw(this.ctx, height, gap));

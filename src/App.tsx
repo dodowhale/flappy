@@ -41,6 +41,9 @@ const App = () => {
     const [bossMaxHp, setBossMaxHp] = createSignal(100);
     const [showBossHp, setShowBossHp] = createSignal(false);
 
+    // Fever Gauge signals
+    const [feverGauge, setFeverGauge] = createSignal(0);
+
     // Audio state
     const [bgmEnabled, setBgmEnabled] = createSignal(
         localStorage.getItem('flappy-bgm-enabled') !== 'false'
@@ -140,6 +143,14 @@ const App = () => {
     };
 
     onMount(() => {
+        // Sanity Check for active character
+        const currentActive = localStorage.getItem('flappy-active-character') || 'goldy';
+        const exists = CHARACTERS.some(c => c.id === currentActive);
+        if (!exists) {
+            localStorage.setItem('flappy-active-character', 'goldy');
+            setActiveCharacter('goldy');
+        }
+
         fetchLeaderboard();
         
         // Setup resizing bindings
@@ -174,6 +185,9 @@ const App = () => {
                     setBossHp(hp);
                     setBossMaxHp(maxHp);
                     setShowBossHp(hp > 0 && gameState() === 'BOSS_FIGHT');
+                },
+                (gauge) => {
+                    setFeverGauge(gauge);
                 }
             );
 
@@ -358,8 +372,56 @@ const App = () => {
                     <span>{coins()}</span>
                 </div>
 
+                {/* Fever Gauge Overlay during game */}
+                <Show when={gameState() === 'PLAYING' || gameState() === 'BOSS_FIGHT'}>
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '55px',
+                        left: '15px',
+                        'z-index': 15,
+                        display: 'flex',
+                        'flex-direction': 'column',
+                        'align-items': 'center'
+                    }}>
+                        <div style={{
+                            width: '90px',
+                            height: '14px',
+                            background: 'rgba(74, 44, 0, 0.35)',
+                            border: '2.5px solid #4a2c00',
+                            'border-radius': '8px',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            display: 'flex',
+                            'align-items': 'center'
+                        }}>
+                            <div style={{
+                                width: `${feverGauge()}%`,
+                                height: '100%',
+                                background: feverGauge() >= 100 
+                                    ? 'linear-gradient(90deg, #ff9f43, #ff5252, #ff9f43)' 
+                                    : 'linear-gradient(90deg, #fdcb6e, #fd79a8)',
+                                'border-radius': '5px',
+                                transition: 'width 0.15s ease-out'
+                            }} />
+                        </div>
+                        <span style={{
+                            'font-size': '10px',
+                            'font-weight': '900',
+                            'color': '#4a2c00',
+                            'margin-top': '4px',
+                            'background': feverGauge() >= 100 ? '#ffeaa7' : '#fff9e6',
+                            'border': '1.5px solid #4a2c00',
+                            'padding': '2px 6px',
+                            'border-radius': '6px',
+                            animation: feverGauge() >= 100 ? 'pulse 0.6s infinite alternate' : 'none'
+                        }}>
+                            {feverGauge() >= 100 ? '🔥 FEVER!' : `FEVER ${Math.round(feverGauge())}%`}
+                        </span>
+                    </div>
+                </Show>
+
                 {/* Active Skill Overlay during game */}
-                <Show when={gameState() === 'PLAYING'}>
+                <Show when={gameState() === 'PLAYING' || gameState() === 'BOSS_FIGHT'}>
                     <div style={{
                         position: 'absolute',
                         bottom: '55px',
@@ -413,11 +475,8 @@ const App = () => {
                                 {/* Skill Icon representation */}
                                 {currentCharacterData().id === 'cherry' ? '💥' : 
                                  currentCharacterData().id === 'berry' ? '🛡️' : 
-                                 currentCharacterData().id === 'mango' ? '🧲' : 
-                                 currentCharacterData().id === 'kiwi' ? '🥝' : 
-                                 currentCharacterData().id === 'minty' ? '🍃' : 
-                                 currentCharacterData().id === 'lemon' ? '⚡' : 
-                                 currentCharacterData().id === 'choco' ? '🍫' : '🔮'}
+                                 currentCharacterData().id === 'mango' ? '⚡' : 
+                                 currentCharacterData().id === 'plum' ? '🔥' : '🔮'}
 
                                 {/* Cooldown Overlay */}
                                 <Show when={skillCdRemaining() > 0}>
