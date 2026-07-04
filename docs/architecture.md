@@ -118,8 +118,8 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
   - `dev.ts`: 개발 서버로, 실행 시 매번 `./src/index.tsx`를 컴파일/번들링하여 `./dist`에 저장한 뒤 Hono 서버를 구동합니다.
   - `server.ts`: 프로덕션 서버로, 소스 코드 빌드 과정 없이 이미 빌드된 `./dist` 폴더 내부의 정적 리소스를 직접 서빙하여 빠른 기동과 안정성을 확보합니다.
 - **리더보드 API**:
-  - `GET /api/leaderboard`: 메모리에 저장된 상위 5개의 랭킹 기록을 반환합니다.
-  - `POST /api/leaderboard`: 플레이어 이름과 점수를 수신하여 랭킹 목록에 추가한 뒤 정렬 및 상위 5개로 잘라 최신 결과를 저장 및 반환합니다.
+  - `GET /api/leaderboard`: `leaderboard.json` 파일에서 읽어와 메모리에 로드된 상위 5개의 랭킹 기록을 반환합니다.
+  - `POST /api/leaderboard`: 플레이어 이름과 점수를 수신하여 랭킹 목록에 추가한 뒤 정렬 및 상위 5개로 잘라 최신 결과를 `leaderboard.json`에 영구히 저장하고 반환합니다. Bun.file API를 활용한 파일 입출력을 통해 서버 재시작 시에도 순위표가 소실되지 않습니다.
 
 ---
 

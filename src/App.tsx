@@ -34,7 +34,6 @@ const App = () => {
 
     // Skill cooldown signals
     const [skillCdRemaining, setSkillCdRemaining] = createSignal(0);
-    const [skillCdDuration, setSkillCdDuration] = createSignal(1);
 
     // Boss battle signals
     const [bossHp, setBossHp] = createSignal(100);
@@ -177,9 +176,8 @@ const App = () => {
                     // Sync coins from game
                     setCoins(Number(localStorage.getItem('flappy-candy-coins') || 0));
                 },
-                (remaining, duration) => {
+                (remaining, _duration) => {
                     setSkillCdRemaining(remaining);
-                    setSkillCdDuration(duration);
                 },
                 (hp, maxHp) => {
                     setBossHp(hp);
@@ -220,11 +218,7 @@ const App = () => {
         return CHARACTERS.find(c => c.id === activeCharacter()) || CHARACTERS[0]!;
     };
 
-    // Cooldown percentage for SVG wheel/progress bar
-    const cooldownPercent = () => {
-        if (skillCdRemaining() <= 0) return 0;
-        return (skillCdRemaining() / skillCdDuration()) * 100;
-    };
+
 
     return (
         <div style={{ 

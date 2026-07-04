@@ -83,13 +83,12 @@ export const CHARACTERS: Character[] = [
 
 class AudioManager {
     private ctx: AudioContext | null = null;
-    private schedulerIntervalId: any = null;
+    private schedulerIntervalId: ReturnType<typeof setInterval> | null = null;
     private nextNoteTime: number = 0.0;
     private currentNoteIndex: number = 0;
     private bpm: number = 135;
     private bgmEnabled: boolean = true;
     private bgmActive: boolean = false;
-    private speedFactor: number = 1.0;
     private feverActive: boolean = false;
 
     // C Major/Pentatonic scale casual 8-bit retro loops
@@ -104,7 +103,10 @@ class AudioManager {
 
     private init() {
         if (!this.ctx) {
-            this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            if (AudioContextClass) {
+                this.ctx = new AudioContextClass();
+            }
             const stored = localStorage.getItem('flappy-bgm-enabled');
             this.bgmEnabled = stored !== 'false';
         }
@@ -121,7 +123,6 @@ class AudioManager {
     }
 
     public updateBGMTempo(speedFactor: number, feverActive: boolean) {
-        this.speedFactor = speedFactor;
         this.feverActive = feverActive;
         this.bpm = 135 * speedFactor * (feverActive ? 1.25 : 1.0);
     }
@@ -615,6 +616,7 @@ export class Bird {
 
     // New active status
     public dashActive: boolean = false;
+    public glideActive: boolean = false;
     public xOffset: number = 0;
     public feverActive: boolean = false;
 
@@ -896,7 +898,7 @@ export class WeatherSystem {
         }
     }
 
-    public update(deltaTime: number, timeScale: number, canvasWidth: number, canvasHeight: number, bird: Bird) {
+    public update(_deltaTime: number, timeScale: number, canvasWidth: number, canvasHeight: number, bird: Bird) {
         const now = performance.now();
 
         if (now - this.lastWeatherChange > 18000) {
@@ -1431,7 +1433,7 @@ export class Game {
     private coins: Coin[] = [];
     private itemBoxes: ItemBox[] = [];
     private pipeSpawnTimer: number = 0;
-    private audio: AudioManager = new AudioManager();
+    public audio: AudioManager = new AudioManager();
     private particles: GameParticle[] = [];
 
     // Fever System State
@@ -1627,7 +1629,7 @@ export class Game {
         this.spawnParticleTrail(this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, 35, true);
     }
 
-    private updateFeverCoins(deltaTime: number, timeScale: number) {
+    private updateFeverCoins(deltaTime: number, _timeScale: number) {
         this.coinSpawnTimer += deltaTime;
         const spawnInterval = 180; // 180ms intervals
         

@@ -15,12 +15,33 @@ await Bun.build({
 
 const app = new Hono();
 
-// Simple in-memory leaderboard
-let leaderboard: { name: string, score: number }[] = [
+const LEADERBOARD_FILE = "./leaderboard.json";
+
+async function loadLeaderboard() {
+  try {
+    const file = Bun.file(LEADERBOARD_FILE);
+    if (await file.exists()) {
+      return await file.json();
+    }
+  } catch (e) {
+    console.error("Failed to load leaderboard, using default.", e);
+  }
+  return [
     { name: "ACE", score: 10 },
     { name: "BIRD", score: 5 },
     { name: "FLY", score: 3 }
-];
+  ];
+}
+
+async function saveLeaderboard(data: { name: string, score: number }[]) {
+  try {
+    await Bun.write(LEADERBOARD_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("Failed to save leaderboard.", e);
+  }
+}
+
+let leaderboard: { name: string, score: number }[] = await loadLeaderboard();
 
 app.use("*", async (c, next) => {
   console.log(`[${c.req.method}] ${c.req.url}`);
@@ -34,6 +55,7 @@ app.post("/api/leaderboard", async (c) => {
     leaderboard.push({ name, score });
     leaderboard.sort((a, b) => b.score - a.score);
     leaderboard = leaderboard.slice(0, 5); // Top 5
+    await saveLeaderboard(leaderboard);
     return c.json({ success: true, leaderboard });
 });
 
