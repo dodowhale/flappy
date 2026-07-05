@@ -1,16 +1,50 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { SolidPlugin } from "bun-plugin-solid";
+import { watch } from "fs";
 
 const PORT = 3000;
 
-console.log("Building project...");
-await Bun.build({
-  entrypoints: ["./src/index.tsx"],
-  outdir: "./dist",
-  naming: "[name].js",
-  plugins: [SolidPlugin()],
-  minify: false,
+async function buildProject() {
+  console.log("Building project...");
+  const result = await Bun.build({
+    entrypoints: ["./src/index.tsx"],
+    outdir: "./dist",
+    naming: "[name].js",
+    plugins: [SolidPlugin()],
+    minify: false,
+  });
+  if (!result.success) {
+    console.error("Build failed:", result.logs);
+  } else {
+    console.log("Build successful!");
+  }
+}
+
+await buildProject();
+
+// Watch src folder for automatic rebuilding
+let isBuilding = false;
+let pendingBuild = false;
+
+async function triggerRebuild() {
+  if (isBuilding) {
+    pendingBuild = true;
+    return;
+  }
+  isBuilding = true;
+  await buildProject();
+  isBuilding = false;
+  if (pendingBuild) {
+    pendingBuild = false;
+    triggerRebuild();
+  }
+}
+
+watch("./src", { recursive: true }, (event, filename) => {
+  if (filename) {
+    triggerRebuild();
+  }
 });
 
 const app = new Hono();

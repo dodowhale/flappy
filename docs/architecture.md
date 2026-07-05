@@ -63,6 +63,22 @@ graph TD
   - **Explode**: 파이프가 부서지는 묵직한 폭발음 (Sawtooth Wave, 0.35초 재생).
   - **ShieldBreak**: 쉴드가 박살 나는 파열음 (Triangle Wave, 0.2초 재생).
 
+#### `WeatherSystem` (기상 환경 물리 제어기)
+- **역할**: 게임 내에 기상 변화(맑음, 비, 눈)를 18초 주기로 발생시키고, 기류(바람)의 무작위 물리력을 생성하여 플레이어에게 외력 물리 작용을 시뮬레이션합니다.
+- **주요 특징**:
+  - **오브젝트 풀링(Object Pooling)**: 100개의 기상 파티클(`WeatherParticle`)을 생성자에서 일괄 풀링하여 런타임 가비지 컬렉터(GC) 오버헤드를 막습니다.
+  - **바람 물리 피드백**: `rainy` 및 `snowy` 상태일 때 좌우 바람의 힘(`windForce`)을 생성하여 새의 수직 속도(`velocity`) 및 수평 오프셋(`xOffset`)을 실시간 변위시킵니다.
+
+#### `BossGiant` (캔디 자이언트 보스)
+- **역할**: 점수 30점 이상 시 등장하여, 화면 중앙부에서 위아래로 호버링하며 플레이어를 조준 타격하는 거대 보스 캐릭터.
+- **주요 특징**:
+  - **오프스크린 캔버스 캐싱(Offscreen Canvas Caching)**: 매 프레임 그라디언트와 벡터 패스(Path)를 렌더링하는 부하를 줄이기 위해 별도의 오프스크린 캔버스(`offscreenCanvas`)에 캐릭터 그래픽을 드로잉 및 캐싱하여 메인 렌더링 파이프라인의 드로우 콜 성능을 극대화합니다.
+  - **패턴 제어**: 1.5초 간격으로 플레이어 새의 Y좌표를 겨냥한 조준탄 발사 신호를 이벤트 콜백 형태로 릴레이합니다.
+
+#### `BossBullet` & `PlayerMissile` (보스/플레이어 투사체)
+- **`BossBullet`**: 보스가 플레이어 방향의 각도 벡터를 연산하여 등속 직선 운동으로 발사하는 조준탄.
+- **`PlayerMissile`**: 보스전 시 플레이어가 점프(`handleInput`)할 때마다 수평 방향으로 자동 사출되어 보스를 타격하는 미사일.
+
 ---
 
 ## 3. 핵심 수학 공식 및 물리 구현
@@ -83,6 +99,53 @@ graph TD
 $$\text{skillCooldownRemaining} \leftarrow \max(0, \text{skillCooldownRemaining} - \text{deltaTime})$$
 
 $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{1000} \right\rceil$$
+
+### 3.3 날씨 기류 및 강우/강설의 물리 작용
+기상 시스템이 `rainy` 혹은 `snowy` 일 때, 6초 주기로 동적 바람 힘($F_{\text{wind}} \in [-1.6, -0.8] \cup [0.8, 1.6]$)이 결정됩니다. (맑은 날인 `sunny` 상태에서는 $F_{\text{wind}} = 0$으로 고정됩니다.) 이 날씨 현상들은 새의 운동 역학에 물리적으로 연동되어 다이나믹한 조작 제어를 요구합니다.
+
+#### 1) 수평 바람 항력 및 스프링-댐퍼 복원 제어
+새는 수평 기준점($x=80$, 즉 $x_{\text{offset}}=0$)으로 비행을 유지하려는 복원 추진력을 가집니다. 바람 외력과 복원력이 상호작용하는 수평 운동 방정식은 다음과 같습니다:
+- **복원 제어력 ($F_{\text{restore}}$)**:
+  $$F_{\text{restore}} = -k \cdot x_{\text{offset}} - c \cdot v_x$$
+  *(여기서 탄성계수 $k = 0.04$, 감쇠계수 $c = 0.15$로 댐핑이 있는 복원력을 모방합니다.)*
+- **바람 외력 ($F_{\text{wind\_force}}$)**:
+  $$F_{\text{wind\_force}} = F_{\text{wind}} \times 0.25$$
+- **수평 가속도 ($a_x$) 및 속도/오프셋 상태 갱신**:
+  $$a_x = F_{\text{restore}} + F_{\text{wind\_force}}$$
+  $$v_x \leftarrow v_x + a_x \cdot \Delta t_{\text{scale}}$$
+  $$x_{\text{offset}} \leftarrow x_{\text{offset}} + v_x \cdot \Delta t_{\text{scale}}$$
+  *(이 공식을 통해 강풍 시 새가 수평 방향으로 출렁이며 밀려나는 물리 현상이 사실적으로 시뮬레이션됩니다.)*
+
+#### 2) 비 (Rainy Weather) 날씨의 깃털 젖음 (중력 증가) 효과
+빗방울이 새의 몸을 적셔 유효 질량이 무거워짐에 따라 하향 중력 가속도가 가산됩니다:
+- **중력 가중치 ($M_{\text{gravity}}$)**: $1.15$ (평시 대비 15% 중력 증가)
+- **수직 물리 갱신**:
+  $$v_y \leftarrow v_y + (g \times 1.15) \cdot \Delta t_{\text{scale}}$$
+
+#### 3) 눈 (Snowy Weather) 날씨의 양력 감소 (점프 감쇄) 및 난기류 요동 효과
+폭설과 한파로 인해 날갯짓 추진력이 둔화되고, 흩날리는 눈송이에 의해 미세 수직 난기류가 발생합니다:
+- **점프 가중치 ($M_{\text{jump}}$)**: $0.92$ (평시 대비 점프력 8% 둔화)
+  $$v_y \leftarrow J_{\text{strength}} \times 0.92$$
+- **수직 난기류 임펄스 ($\text{Noise}_{\text{white}}$)**:
+  $$v_y \leftarrow v_y + \text{Noise}_{\text{white}} \cdot \Delta t_{\text{scale}}$$
+  *(여기서 $\text{Noise}_{\text{white}} \sim \text{Uniform}(-0.06, 0.06)$ 범위의 무작위 백색 소음 외력이 매 프레임 작용하여 위아래로 가늘게 흩날리는 비행감을 연출합니다.)*
+
+#### 4) 무적 피버 상태의 물리 보정
+- 무적 피버 상태(`feverActive`가 true)일 때는 원활한 코인 수집과 조작 편의성을 위해 날씨 페널티가 즉시 소멸합니다.
+- $$x_{\text{offset}} = 0, \quad v_x = 0, \quad M_{\text{gravity}} = 1.0, \quad M_{\text{jump}} = 1.0$$
+
+### 3.4 보스전 궤적 조준 및 데미지 충돌 판정
+- **보스 탄환 궤적 각도 산출**: 보스가 1.5초마다 플레이어 위치($x_{\text{bird}}, y_{\text{bird}}$)를 실시간 추적하여 조준탄의 수평/수직 분속 벡터($v_x, v_y$)를 계산합니다.
+  $$\text{dist} = \sqrt{(x_{\text{bird}} - x_{\text{boss}})^2 + (y_{\text{bird}} - y_{\text{boss}})^2}$$
+  $$v_x = \frac{x_{\text{bird}} - x_{\text{boss}}}{\text{dist}} \times 4.2, \quad v_y = \frac{y_{\text{bird}} - y_{\text{boss}}}{\text{dist}} \times 4.2$$
+- **쉴드 슬램(Shield Slam) 피해 공식**: 플레이어가 쉴드를 장착한 상태에서 보스 충돌 반경(38px) 이내로 충돌 시, 쉴드가 터지며 충돌 방어 및 무적 타임(1.2초) 부여와 함께 보스에게 15의 폭발 대미지를 가합니다.
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 15), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 10)$$
+- **망고 대시 슬램(Dash Slam) 피해 공식**: 플레이어가 망고새의 무적 돌진(`dashActive`가 true) 상태일 때 보스 충돌 반경(38px) 이내로 충돌하면 보스에게 20의 강력한 충돌 대미지를 가하며, 대시 상태가 즉각 해제되고 수평 오프셋 위치가 원래 비행 좌표로 안전하게 복귀됩니다.
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 20)$$
+- **체리 캔디 블래스트(Candy Blast) 보스 타격 공식**: 보스전 도중 체리새의 액티브 스킬을 시전하면 화면 내의 모든 보스 조준탄(`bossBullets`)이 소멸 파티클과 함께 파괴되며, 보스에게 12의 큰 광역 대미지를 입힙니다.
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 12)$$
+- **일반 미사일 피해 공식**: 점프당 1발씩 발사되는 플레이어 미사일이 보스 히트박스(40px) 이내로 도달 시 4의 일반 대미지를 입힙니다.
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 4), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 2)$$
 
 ---
 
@@ -109,6 +172,18 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 ### 4.2 피버 게이지 및 아이템 박스 시스템
 - **피버 게이지**: 파이프 통과(Good: +5%, Perfect: +25%), 코인 획득(+4%), 보스 타격(+2%) 시 게이지가 차오르며, 100% 도달 시 5초간 자동으로 무적 피버 모드가 발동되어 코인이 뱀 패턴으로 쏟아집니다.
 - **아이템 박스**: 게임 중 20% 확률로 파이프 사이에 선물 상자가 스폰됩니다. 획득 시 5초간 자석, 쉴드, 2배 코인, 또는 피버 게이지 40% 즉시 충전 중 하나의 버프 효과가 적용됩니다.
+
+### 4.3 캔디 자이언트 보스 레이드 스펙
+- **트리거 및 단계 전환**: 플레이어의 점수가 30점씩 추가로 누적될 때마다(30점, 60점, 90점...) 일반 파이프 생성이 일시 중단되며, 즉각 경고 알림("WARNING! BOSS APPEARED!")과 함께 `BOSS_FIGHT` 모드로 진입합니다.
+- **체력 및 대미지 교환**:
+  - 보스 체력: $100\text{ HP}$ (UI 상단에 전용 체력바 렌더링).
+  - 플레이어의 기본 물리 점프 시, 플레이어 측 수평 미사일(`PlayerMissile`)이 1발 발사되며 타격 시 $4$ 대미지를 줍니다.
+  - 플레이어가 `shieldActive` 상태일 때 보스 본체와 충돌하면 쉴드가 파괴되면서 보스에게 $15$ 대미지를 줍니다(Shield Slam).
+  - 플레이어가 `dashActive` (무적 대시) 상태일 때 보스 본체와 충돌하면 보스에게 $20$ 대미지를 주며 대시 무적과 오프셋 비행이 즉시 해제됩니다(Dash Slam).
+- **격퇴 보상 및 복구**:
+  - 보스 체력이 $0$이 되면 보스가 격퇴되며 해당 좌표 주위로 25개의 코인이 무작위 분산 스폰됩니다.
+  - 격퇴 보상 코인은 `isBossReward` 특수 물리 플래그가 지정되어 플레이어의 자력 상태 유무와 관계없이 강력하게 플레이어에게 당겨져 자동 획득됩니다(최대 흡입 반경 $350\text{px}$).
+  - 격퇴 즉시 게임 모드는 `PLAYING`으로 복구되며, 복구 시점에 `pipeSpawnTimer`를 0으로 리셋하여 복귀하자마자 장애물이 불공평하게 유저 눈앞에 스폰되는 현상을 사전에 차단합니다.
 
 ---
 
@@ -148,3 +223,50 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 ### 7.2 클라이언트-사이드 오프라인 예외 처리 ([src/App.tsx](file:///Users/east/work/flappy/src/App.tsx))
 - **리더보드 API 복구**: 서비스 워커 샌드박스 내부에서는 `localStorage` 조회가 불가능하므로, 예외 처리를 클라이언트 단인 `App.tsx`로 이관했습니다.
 - 리더보드 조회(`fetchLeaderboard`) 또는 등록(`submitScore`) API 요청이 오프라인 단절로 인해 실패하면, `catch` 문에서 경고를 감지하고 플레이어의 로컬 최고기록(LocalStorage)만을 단독 기입하여 렌더링하거나 성공 시뮬레이션을 돌려 화면이 정지되는 상태를 완벽히 해결했습니다.
+
+### 7.3 오프라인 로컬 리더보드 지속성 스토리지 전략
+- **로컬 캐싱 메커니즘**: 네트워크가 완전히 차단된 상태에서도 플레이어 간의 점수 기록 경쟁 재미를 보존하기 위해, `flappy-local-leaderboard` localStorage 키를 생성하여 단말기 로컬 환경에 독립적인 상위 5위 리더보드 정보를 JSON 데이터 구조로 관리합니다.
+- **점수 기록 및 정렬 파이프라인**:
+  1. 오프라인 상황에서 신기록 달성 후 랭킹 전송(`submitScore`) 요청 시, `catch` 블록으로 예외가 포착되며 로컬 리더보드 파이프라인이 자동 실행됩니다.
+  2. 로컬 스토리지에서 기존 리더보드 데이터를 파싱하여 불러온 뒤, 신규 유저 스코어 레코드를 배열에 추가(`push`)합니다.
+  3. 배열을 `score` 내림차순(Desc) 기준으로 즉시 정렬한 후, 상위 5개 항목만 슬라이스(`slice(0, 5)`)하여 로컬 스토리지에 재기록하고 SolidJS의 `leaderboard` 시그널로 상태를 갱신해 화면에 렌더링합니다.
+
+---
+
+## 8. 리소스 누수 방지 및 반응형 렌더링 최적화 (Resource & Reactivity Optimization)
+
+웹 게임 애플리케이션의 장시간 플레이 안정성과 프레임 드랍 방지를 위해 메모리 누수 제어 및 렌더링 프레임워크 오버헤드 감축 기법을 도입했습니다.
+
+### 8.1 Web Audio API 컨텍스트 정리 및 누수 차단
+- **AudioContext 해제 파이프라인**: SolidJS 컴포넌트 마운트 해제(`onCleanup`) 시 또는 게임 엔진 정지(`stop()`) 시, `AudioManager` 인스턴스에 명시적인 `close()` 파이프라인을 실행합니다.
+- `this.ctx.close()`를 동기적으로 호출하여 브라우저 가상 스레드에 할당된 오디오 하드웨어 컨텍스트 리소스를 명확히 반환함으로써, SPA 환경에서 게임 재시작이나 잦은 페이지 진입 시 브라우저 오디오 컨텍스트 개수 한도 초과로 소리가 재생되지 않는 고질적인 오디오 엔진 크래시 문제를 차단합니다.
+
+### 8.2 SolidJS 세밀한 반응성(Fine-Grained Reactivity) 오버헤드 감축
+- **Signal 업데이트 임계치 적용**: 쿨타임 타이머(`skillCdRemaining`) 및 피버 게이지(`feverGauge`)는 런타임에 밀리초 단위 혹은 소수점 단위로 지속 업데이트됩니다. 이를 매 프레임 Signal에 곧바로 반영하면, 프레임워크 렌더링 트리에서 불필요한 DOM 상태 비교 연산이 매 프레임 수십 번 발생하여 프레임 드랍을 유발합니다.
+- 이를 해결하기 위해 **정수 단위 상태 비교 필터링**을 적용했습니다:
+  - **쿨타임 타이머**: 올림된 정수 초(`Math.ceil(cd / 1000)`) 값이 바뀔 때만 Signal을 갱신합니다. (업데이트 횟수 약 60배 감소)
+  - **피버 게이지**: 반올림된 정수 백분율(`Math.round(gauge)`) 값이 바뀔 때만 Signal을 갱신합니다.
+- 이 정밀 갱신 필터를 통해 SolidJS 내부의 반응성 오버헤드를 극적으로 감축하고 무지개 피버 모드 및 연출 시에도 60FPS의 매끄러운 렌더링을 일관되게 보장합니다.
+
+### 8.3 동적 코인 자석 흡입 물리 공식 보완
+- **게임 속도 비례 가속 기법**: 게임 점수가 높아질수록 게임 속도(`speed`)가 증가하는 난이도 매트릭스를 고려하여, 코인 자석 흡입 시의 당김 속도(`pullSpeed`)를 상수로 두지 않고 `speed`에 가산 상수를 더하는 동적 벡터 수식으로 개편했습니다:
+  - $$\text{pullSpeed}_{\text{passive}} = \text{speed} + 0.6$$
+  - $$\text{pullSpeed}_{\text{active}} = \text{speed} + 4.5$$
+- 이를 통해 게임 속도가 최고 3.5에 달하는 Phase 4(고수 단계)에서도 코인이 물리 법칙에 밀려 새를 통과하여 왼쪽으로 멀어지는 현상을 방지하고 기획에 정의된 완벽한 흡입 처리를 완수합니다.
+
+---
+
+## 9. 개발 생산성 및 안전성 확보 (Developer Experience & Safety)
+
+### 9.1 개발 서버 자동 감시 및 재빌드 (Watch Mode)
+- **개발 환경 개선 (`dev.ts`)**: 기존 단발성 빌드 구동 방식에서 `fs.watch` 기반의 디렉터리 변경 감지형 백그라운드 컴파일 파이프라인으로 업그레이드하였습니다.
+- 개발자가 `src/` 디렉터리 내의 컴포넌트, 물리 엔진 소스 코드 파일(TypeScript, SolidJS TSX)을 수정하여 저장하면 개발 서버 콘솔에서 자동으로 이를 감지하여 `Bun.build`를 호출하고 즉시 `./dist/index.js` 번들 파일을 재구축합니다. 이를 통해 서버 재부팅 없이 웹 브라우저 새로고침만으로 즉시 게임 수정 사항을 반영하여 생산성을 크게 향상시켰습니다.
+
+### 9.2 코어 게임 물리 및 엔티티 단위 테스트 (`src/game/Game.test.ts`)
+- **단위 테스트 도입**: 브라우저 샌드박스(Canvas, AudioContext, LocalStorage 등) 하에 돌아가는 게임 비즈니스 로직을 온전히 가두어 실행하기 위해 Bun 내장 `bun:test` 러너에 최적화된 Mocking 레이어를 갖춘 테스트 스위트를 설계 및 구현했습니다.
+- **주요 테스트 영역**:
+  - `CHARACTERS` 상수의 규격 스펙 검증 (가격, 스킬 정보 유무 등)
+  - `Bird` 플레이어의 초기 물리 값 및 상태 전이 데이터 무결성 검증
+  - `Coin`과 `ItemBox` 등 게임 재화 및 상자 엔티티의 타임스텝 물리 연산 정합성 검증
+  - `WeatherSystem`의 시점별 하늘 그라데이션 컬러 포맷 검증
+- 이를 통해 런타임 게임 동작 중에 발생할 수 있는 잠재적 물리 오버플로우나 타입 에러 등의 크래시 요소를 빌드 전에 안전하게 선제 포착할 수 있도록 안전 장치를 마련했습니다.

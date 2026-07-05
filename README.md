@@ -17,16 +17,17 @@ SolidJS와 HTML5 Canvas API, 그리고 Bun + Hono로 구현된 고성능 패럴�
 ```text
 ├── src/
 │   ├── game/
-│   │   └── Game.ts       # 게임 물리 엔진, Canvas 렌더링, 오디오 및 엔티티(Bird, Pipe) 관리
+│   │   ├── Game.ts       # 게임 물리 엔진, Canvas 렌더링, 오디오 및 엔티티(Bird, Pipe) 관리
+│   │   └── Game.test.ts  # 코어 물리 및 엔티티 상태 검증 단위 테스트
 │   ├── App.tsx           # 게임 UI 오버레이, 리더보드 폼, SolidJS 뷰 레이어
 │   └── index.tsx         # 애플리케이션 진입점
 ├── docs/
 │   ├── game-design.md    # 초기 게임 기획서 및 마일스톤
-│   └── architecture.md   # 시스템 아키텍처 및 상세 구현 설명서 (추가 예정)
+│   └── architecture.md   # 시스템 아키텍처 및 상세 구현 설명서
 ├── AGENTS.md             # AI 에이전트 개발 지침 & 컨벤션
 ├── ANTIGRAVITY.md        # 프로젝트 메타 가이드
-├── dev.ts                # Hono 기반 개발 서버 및 빌드 스크립트, 리더보드 API (Rebuilds code)
-├── server.ts             # Hono 기반 프로덕션 static 파일 서빙 및 리더보드 API (No rebuilds)
+├── dev.ts                # Hono 기반 개발 서버 및 빌드 스크립트, 리더보드 API (코드 변경 자동 감지 & 재빌드)
+├── server.ts             # Hono 기반 프로덕션 static 파일 서빙 및 리더보드 API (빌드 없음)
 ├── build.ts              # 배포용 프로덕션 빌드 스크립트
 ├── index.html            # 웹 진입점 HTML
 └── package.json          # 의존성 및 스크립트 정의
@@ -39,12 +40,18 @@ SolidJS와 HTML5 Canvas API, 그리고 Bun + Hono로 구현된 고성능 패럴�
 bun install
 ```
 
-### 개발 서버 실행 (자동 빌드 포함)
-Hono 개발 서버를 실행하고, 소스코드가 변경되면 빌드를 수행합니다.
+### 개발 서버 실행 (자동 감시 및 재빌드 지원)
+Hono 개발 서버를 실행하며, `src/` 내 소스코드 파일 변경을 실시간 감지하여 자동 컴파일을 수행합니다.
 ```bash
 bun run dev
 ```
 서버가 시작되면 [http://localhost:3000](http://localhost:3000)에서 게임을 플레이할 수 있습니다.
+
+### 단위 테스트 실행
+Bun 내장 테스트 러너를 통해 게임 물리 로직 및 캐릭터 상태 검증을 수행합니다.
+```bash
+bun test
+```
 
 ### 프로덕션 빌드
 Bun의 빌더를 활용해 최적화 및 경량화된 단일 번들 파일을 생성합니다.
@@ -57,6 +64,9 @@ bun run build
 1. **Procedural Graphics (절차적 그래픽)**: 외부 이미지 에셋 없이 Canvas API의 그라디언트, 경로 및 회전 효과만으로 미려한 2D 그래픽과 애니메이션을 실시간 렌더링합니다.
 2. **Seamless Parallax Layering (다층 패럴랙스 스크롤링)**: 구름(가장 느림), 빌딩(중간 속도), 바닥(게임 속도)으로 분리된 3중 레이어로 깊이감 있는 원근감을 선사합니다.
 3. **Dynamic Difficulty Scaling (가변 난이도)**: 플레이어의 점수가 높아질수록 게임 스피드가 점진적으로 빨라지고, 파이프의 생성 주기가 단축되어 도전 욕구를 자극합니다.
-4. **Synthesized Web Audio (합성 오디오)**: 외부 음원 파일 없이 Web Audio API의 Oscillator와 Gain 노드를 직접 제어하여 점프(Jump), 득점(Score), 충돌(Hit) 시의 레트로 효과음을 생성합니다.
-5. **Real-time Leaderboard (실시간 리더보드)**: 최고 기록 달성 시 플레이어 이름을 입력하여 Hono 백엔드 API `/api/leaderboard`를 통해 Top 5 랭킹을 갱신하고 보여줍니다. 로컬 저장소(LocalStorage)와도 동기화됩니다.
+4. **Dynamic Weather System (동적 기상 시스템 & 날씨 물리)**: 맑음, 비, 눈 날씨가 동적으로 전이되며, 각 기상 조건에 따라 스프링-댐퍼 모델에 기반한 수평 바람 밀림 복원 물리, 빗물에 의한 중력 가속도 15% 증가, 한파에 따른 점프 추진력 8% 감소 및 미세 수직 난기류 연산이 다이나믹하게 개입합니다.
+5. **Synthesized Web Audio (합성 오디오)**: 외부 음원 파일 없이 Web Audio API의 Oscillator와 Gain 노드를 직접 제어하여 점프(Jump), 득점(Score), 충돌(Hit) 시의 레트로 효과음을 생성합니다.
+6. **Real-time Leaderboard (실시간 리더보드)**: 최고 기록 달성 시 플레이어 이름을 입력하여 Hono 백엔드 API `/api/leaderboard`를 통해 Top 5 랭킹을 갱신하고 보여줍니다. 오프라인 모드 시 로컬 저장소(`flappy-local-leaderboard`)를 통해 순위표를 안전하게 보존합니다.
+7. **Progressive Web App (PWA) & Offline Play**: 서비스 워커 프리캐싱 및 오프라인 단독 구동 기능을 탑재하여 인터넷 단절 환경(예: 비행기 모드)에서도 독립 웹앱으로 실행 및 점수 저장이 가능합니다.
+8. **Chubby Character Shop (캐릭터 상점 및 고유 스킬)**: 획득한 별 사탕 코인으로 고유의 액티브/패시브 스킬(자석 범위 확대, 파이프 전체 파괴, 무적 대시 돌진 등)을 탑재한 다양한 캐릭터를 해금하고 장착할 수 있습니다.
 

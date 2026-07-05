@@ -79,24 +79,45 @@ const App = () => {
             }
         } catch (e) {
             console.warn('Leaderboard fetch failed (offline mode):', e);
-            // Fallback: Populate list with player's own local best
-            setLeaderboard([
-                { name: userName() || "YOU", score: highScore() }
-            ]);
+            // Fallback: Load local leaderboard from localStorage
+            try {
+                const localData = localStorage.getItem('flappy-local-leaderboard');
+                if (localData) {
+                    setLeaderboard(JSON.parse(localData));
+                } else {
+                    // Populate initial offline mockup leaderboard similar to server defaults
+                    const defaultList = [
+                        { name: "ACE", score: 10 },
+                        { name: "BIRD", score: 5 },
+                        { name: "FLY", score: 3 }
+                    ];
+                    if (highScore() > 0) {
+                        // Insert user high score if present
+                        defaultList.push({ name: (userName() || "YOU").trim().slice(0, 8), score: highScore() });
+                        defaultList.sort((a, b) => b.score - a.score);
+                    }
+                    const top5 = defaultList.slice(0, 5);
+                    setLeaderboard(top5);
+                    localStorage.setItem('flappy-local-leaderboard', JSON.stringify(top5));
+                }
+            } catch (err) {
+                setLeaderboard([{ name: (userName() || "YOU").trim().slice(0, 8), score: highScore() }]);
+            }
         }
     };
 
     const submitScore = async () => {
-        if (!userName() || isSubmitting() || hasSubmitted()) return;
+        const trimmedName = userName().trim();
+        if (!trimmedName || isSubmitting() || hasSubmitted()) return;
         
         setIsSubmitting(true);
-        localStorage.setItem('flappy-user-name', userName());
+        localStorage.setItem('flappy-user-name', trimmedName);
         
         try {
             const res = await fetch('/api/leaderboard', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: userName(), score: score() })
+                body: JSON.stringify({ name: trimmedName, score: score() })
             });
             if (res.ok) {
                 setHasSubmitted(true);
@@ -106,11 +127,25 @@ const App = () => {
             }
         } catch (e) {
             console.warn('Score submission failed (offline mode):', e);
-            // Offline fallback: Simulate successful register and update local view
+            // Offline fallback: Add to local leaderboard in localStorage
             setHasSubmitted(true);
-            setLeaderboard([
-                { name: userName().toUpperCase().slice(0, 8), score: score() }
-            ]);
+            try {
+                const localData = localStorage.getItem('flappy-local-leaderboard');
+                let list: LeaderboardEntry[] = localData ? JSON.parse(localData) : [];
+                const newEntry: LeaderboardEntry = { 
+                    name: trimmedName.toUpperCase().slice(0, 8), 
+                    score: score() 
+                };
+                list.push(newEntry);
+                list.sort((a, b) => b.score - a.score);
+                list = list.slice(0, 5); // Keep top 5
+                localStorage.setItem('flappy-local-leaderboard', JSON.stringify(list));
+                setLeaderboard(list);
+            } catch (err) {
+                setLeaderboard([
+                    { name: trimmedName.toUpperCase().slice(0, 8), score: score() }
+                ]);
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -140,6 +175,13 @@ const App = () => {
             }
         }
     };
+
+    onCleanup(() => {
+        if (gameInstance) {
+            gameInstance.stop();
+        }
+        window.removeEventListener('resize', updateScale);
+    });
 
     onMount(() => {
         // Sanity Check for active character
@@ -177,7 +219,11 @@ const App = () => {
                     setCoins(Number(localStorage.getItem('flappy-candy-coins') || 0));
                 },
                 (remaining, _duration) => {
-                    setSkillCdRemaining(remaining);
+                    const prevSec = Math.ceil(skillCdRemaining() / 1000);
+                    const nextSec = Math.ceil(remaining / 1000);
+                    if (prevSec !== nextSec || remaining === 0 || skillCdRemaining() === 0) {
+                        setSkillCdRemaining(remaining);
+                    }
                 },
                 (hp, maxHp) => {
                     setBossHp(hp);
@@ -185,7 +231,11 @@ const App = () => {
                     setShowBossHp(hp > 0 && gameState() === 'BOSS_FIGHT');
                 },
                 (gauge) => {
-                    setFeverGauge(gauge);
+                    const prevGauge = Math.round(feverGauge());
+                    const nextGauge = Math.round(gauge);
+                    if (prevGauge !== nextGauge || gauge === 0 || gauge === 100) {
+                        setFeverGauge(gauge);
+                    }
                 }
             );
 
@@ -198,11 +248,6 @@ const App = () => {
             // Reactive sync for active character change
             createEffect(() => {
                 game.setPlayerCharacter(activeCharacter());
-            });
-
-            onCleanup(() => {
-                game.stop();
-                window.removeEventListener('resize', updateScale);
             });
         }
     });

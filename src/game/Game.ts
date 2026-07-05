@@ -395,6 +395,14 @@ class AudioManager {
             gain.disconnect();
         }, 250);
     }
+
+    public close() {
+        this.stopBGM();
+        if (this.ctx) {
+            this.ctx.close().catch(err => console.warn("Failed to close AudioContext:", err));
+            this.ctx = null;
+        }
+    }
 }
 
 interface BackgroundLayer {
@@ -477,11 +485,13 @@ export class Coin {
     public y: number;
     public radius: number = 8.5;
     public collected: boolean = false;
+    public isBossReward: boolean = false;
     private bounceOffset: number = Math.random() * Math.PI * 2;
 
-    constructor(x: number, y: number) {
+    constructor(x: number, y: number, isBossReward: boolean = false) {
         this.x = x;
         this.y = y;
+        this.isBossReward = isBossReward;
     }
 
     public update(speed: number, timeScale: number) {
@@ -605,6 +615,7 @@ export class Bird {
     public y: number;
     public radius: number = 16; 
     public velocity: number = 0;
+    public vx: number = 0; // Horizontal velocity
     private rotation: number = 0;
     private wingAngle: number = 0;
     private wingFlapSpeed: number = 0.25;
@@ -628,21 +639,22 @@ export class Bird {
         return this.radius;
     }
 
-    public update(timeScale: number, isReady: boolean = false) {
+    public update(timeScale: number, isReady: boolean = false, gravityMultiplier: number = 1.0) {
         if (isReady) {
             this.wingAngle += this.wingFlapSpeed * 0.65 * timeScale;
             this.velocity = 0;
             this.rotation = 0;
+            this.vx = 0;
         } else {
-            this.velocity += GRAVITY * timeScale;
+            this.velocity += GRAVITY * gravityMultiplier * timeScale;
             this.y += this.velocity * timeScale;
             this.wingAngle += this.wingFlapSpeed * timeScale;
             this.rotation = Math.min(Math.PI / 2.2, Math.max(-Math.PI / 5, (this.velocity * 0.08)));
         }
     }
 
-    public jump() {
-        this.velocity = JUMP_STRENGTH;
+    public jump(jumpMultiplier: number = 1.0) {
+        this.velocity = JUMP_STRENGTH * jumpMultiplier;
     }
 
     public draw(ctx: CanvasRenderingContext2D) {
@@ -884,6 +896,10 @@ export class WeatherSystem {
     private lastWindChange: number = 0;
     private lastWeatherChange: number = 0;
 
+    // Physics adjustment multipliers by weather
+    public gravityMultiplier: number = 1.0;
+    public jumpMultiplier: number = 1.0;
+
     constructor(canvasWidth: number, canvasHeight: number) {
         for (let i = 0; i < this.maxParticles; i++) {
             this.particles.push({
@@ -898,7 +914,14 @@ export class WeatherSystem {
         }
     }
 
-    public update(_deltaTime: number, timeScale: number, canvasWidth: number, canvasHeight: number, bird: Bird) {
+    public update(
+        _deltaTime: number, 
+        timeScale: number, 
+        canvasWidth: number, 
+        canvasHeight: number, 
+        bird: Bird,
+        onWeatherChange?: (state: 'sunny' | 'rainy' | 'snowy') => void
+    ) {
         const now = performance.now();
 
         if (now - this.lastWeatherChange > 18000) {
@@ -908,6 +931,8 @@ export class WeatherSystem {
             this.weatherState = nextState;
             
             if (this.weatherState === 'rainy') {
+                this.gravityMultiplier = 1.15; // Rain increases bird weight (gravity)
+                this.jumpMultiplier = 1.0;
                 this.particles.forEach(p => {
                     p.active = true;
                     p.x = Math.random() * canvasWidth;
@@ -918,6 +943,8 @@ export class WeatherSystem {
                     p.color = 'rgba(162, 191, 237, 0.45)';
                 });
             } else if (this.weatherState === 'snowy') {
+                this.gravityMultiplier = 1.0;
+                this.jumpMultiplier = 0.92; // Snowy blizzard dampens bird's jump strength
                 this.particles.forEach(p => {
                     p.active = true;
                     p.x = Math.random() * canvasWidth;
@@ -928,24 +955,47 @@ export class WeatherSystem {
                     p.color = 'rgba(255, 255, 255, 0.75)';
                 });
             } else {
+                this.gravityMultiplier = 1.0;
+                this.jumpMultiplier = 1.0;
                 this.particles.forEach(p => p.active = false);
+            }
+
+            if (onWeatherChange) {
+                onWeatherChange(this.weatherState);
             }
         }
 
         if (now - this.lastWindChange > 6000) {
             this.lastWindChange = now;
             if (this.weatherState !== 'sunny') {
-                this.windForce = (Math.random() - 0.5) * 1.6;
+                const sign = Math.random() < 0.5 ? -1 : 1;
+                this.windForce = sign * (Math.random() * 0.8 + 0.8);
             } else {
-                this.windForce = (Math.random() - 0.5) * 0.4;
+                this.windForce = 0.0;
             }
         }
 
         if (bird.feverActive) {
             bird.xOffset = 0;
+            bird.vx = 0;
         } else {
-            bird.velocity += (this.windForce * 0.08) * timeScale;
-            bird.xOffset = Math.sin(now * 0.0035) * (8 + Math.abs(this.windForce) * 7);
+            // Mass-Spring-Damper horizontal restoration & wind drag physical feedback
+            const k = 0.04;  // restoration spring coefficient
+            const c = 0.15;  // damping coefficient
+            const F_restore = -k * bird.xOffset - c * bird.vx;
+            
+            // Convert windForce to horizontal external force
+            const alpha = 0.25;
+            const F_wind = this.windForce * alpha;
+            
+            const ax = F_restore + F_wind;
+            bird.vx += ax * timeScale;
+            bird.xOffset += bird.vx * timeScale;
+
+            // Introduce light random vertical turbulence during snowstorms
+            if (this.weatherState === 'snowy') {
+                bird.velocity += (Math.random() - 0.5) * 0.12 * timeScale;
+            }
         }
 
         if (this.weatherState !== 'sunny') {
@@ -1447,6 +1497,7 @@ export class Game {
     private boss: BossGiant | null = null;
     private bossBullets: BossBullet[] = [];
     private playerMissiles: PlayerMissile[] = [];
+    private lastBossScore: number = 0;
 
     // Active skills duration timers (in ms)
     private shieldDurationRemaining: number = 0;
@@ -1516,7 +1567,7 @@ export class Game {
     }
 
     public useActiveSkill() {
-        if (this.state !== 'PLAYING') return;
+        if (this.state !== 'PLAYING' && this.state !== 'BOSS_FIGHT') return;
         if (this.skillCooldownRemaining > 0) return;
 
         const char = CHARACTERS.find(c => c.id === this.bird.characterId);
@@ -1524,7 +1575,25 @@ export class Game {
 
         if (char.id === 'cherry') {
             // Candy Blast - 모든 파이프 파괴 & 개당 보너스 1점, 1코인 추가
-            if (this.pipes.length > 0) {
+            // 보스전일 경우: 모든 보스 탄환 소멸 및 보스에게 12의 큰 데미지
+            if (this.state === 'BOSS_FIGHT' && this.boss) {
+                this.audio.playExplode();
+                this.bossBullets.forEach(b => {
+                    this.spawnParticleTrail(b.x, b.y, 5, true);
+                });
+                this.bossBullets = [];
+                
+                this.boss.takeDamage(12);
+                this.spawnTextParticle("BLAST! -12 HP", this.boss.x, this.boss.y - 10, '#ff7675');
+                this.spawnParticleTrail(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 20, true);
+                
+                if (this.onBossHpChange) {
+                    this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                }
+                if (this.boss.hp <= 0) {
+                    this.triggerBossDefeated();
+                }
+            } else if (this.pipes.length > 0) {
                 this.audio.playExplode();
                 const bonus = this.pipes.length;
                 this.score += bonus;
@@ -1667,7 +1736,7 @@ export class Game {
             const dist = Math.random() * 45 + 10;
             const cx = this.boss!.x + this.boss!.width / 2 + Math.cos(angle) * dist;
             const cy = this.boss!.y + this.boss!.height / 2 + Math.sin(angle) * dist;
-            this.coins.push(new Coin(cx, cy));
+            this.coins.push(new Coin(cx, cy, true)); // Spawns with magnetic pull force enabled
         }
         this.spawnParticleTrail(this.boss!.x + this.boss!.width / 2, this.boss!.y + this.boss!.height / 2, 45, true);
         this.spawnTextParticle("VICTORY!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#55efc4');
@@ -1675,6 +1744,8 @@ export class Game {
         this.boss = null;
         this.bossBullets = [];
         this.playerMissiles = [];
+        this.lastBossScore = this.score;
+        this.pipeSpawnTimer = 0; // Prevent instant pipe spawning upon returning to PLAYING state
         this.state = 'PLAYING';
         this.onStateChange('PLAYING');
         if (this.onBossHpChange) {
@@ -1713,6 +1784,13 @@ export class Game {
             return;
         }
 
+        // Prevent game input if event target is not the canvas itself (excluding keyboard events)
+        if (e && !(e instanceof KeyboardEvent)) {
+            if (e.target !== this.ctx.canvas) {
+                return;
+            }
+        }
+
         // Prevent browser double triggers (mousedown & touchstart at once) and scroll delays
         if (e && (e.type === 'touchstart' || e.type === 'mousedown')) {
             e.preventDefault();
@@ -1734,21 +1812,24 @@ export class Game {
         }
         
         if (this.state === 'PLAYING') {
-            this.bird.jump();
+            this.bird.jump(this.weather.jumpMultiplier);
             this.audio.playJump();
             this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
         } else if (this.state === 'BOSS_FIGHT') {
-            this.bird.jump();
+            this.bird.jump(this.weather.jumpMultiplier);
             this.audio.playJump();
             this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
             this.playerMissiles.push(new PlayerMissile(this.bird.x + this.bird.currentRadius, this.bird.y));
         } else if (this.state === 'GAME_OVER') {
-            this.reset();
-            this.state = 'PLAYING';
-            this.onStateChange('PLAYING');
-            this.audio.playJump();
-            this.audio.startBGM();
-            this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
+            if (e instanceof KeyboardEvent && e.code === 'Space') {
+                this.reset();
+                this.state = 'PLAYING';
+                this.onStateChange('PLAYING');
+                this.audio.playJump();
+                this.audio.startBGM();
+                this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
+            }
+            return;
         }
     }
 
@@ -1769,6 +1850,7 @@ export class Game {
         this.boss = null;
         this.bossBullets = [];
         this.playerMissiles = [];
+        this.lastBossScore = 0;
         if (this.onBossHpChange) {
             this.onBossHpChange(0, 100);
         }
@@ -1851,7 +1933,20 @@ export class Game {
         }
 
         // Update weather and apply wind forces (Object Pooling particles & deltaTime wind physics)
-        this.weather.update(deltaTime, timeScale, this.ctx.canvas.width, this.ctx.canvas.height, this.bird);
+        this.weather.update(deltaTime, timeScale, this.ctx.canvas.width, this.ctx.canvas.height, this.bird, (nextWeather) => {
+            if (this.state === 'PLAYING' || this.state === 'BOSS_FIGHT') {
+                if (nextWeather === 'rainy') {
+                    this.spawnTextParticle("RAINY WEATHER!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 30, '#74b9ff');
+                    this.spawnTextParticle("HEAVY FEATHERS! (Gravity +15%)", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#74b9ff');
+                } else if (nextWeather === 'snowy') {
+                    this.spawnTextParticle("SNOWY BLIZZARD!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 30, '#a29bfe');
+                    this.spawnTextParticle("CHILLY FLAPS! (Jump Power -8%)", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#a29bfe');
+                } else {
+                    this.spawnTextParticle("SUNNY DAY!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2 - 30, '#ffd32d');
+                    this.spawnTextParticle("CLEAR AIR!", this.ctx.canvas.width / 2, this.ctx.canvas.height / 2, '#ffd32d');
+                }
+            }
+        });
 
         // Update Backgrounds
         this.bgLayers.forEach(layer => {
@@ -1934,14 +2029,17 @@ export class Game {
             let pullSpeed = 0;
             let pullRadius = 0;
 
-            if (this.bird.magnetActive || this.bird.feverActive) {
-                pullSpeed = 7.5;
+            if (coin.isBossReward) {
+                pullSpeed = speed + 5.5;
+                pullRadius = 350; // Strong magnetic pull for boss reward coins
+            } else if (this.bird.magnetActive || this.bird.feverActive) {
+                pullSpeed = speed + 4.5;
                 pullRadius = this.bird.characterId === 'mango' ? 220 : 150;
             } else if (this.bird.dashActive) {
-                pullSpeed = 16.0; // ultra fast pull during dash
+                pullSpeed = speed + 12.5; // ultra fast pull during dash
                 pullRadius = 240;
             } else if (this.bird.characterId === 'goldy') {
-                pullSpeed = 3.2;
+                pullSpeed = speed + 0.6;
                 pullRadius = 90; // goldy has passive magnetic range
             }
 
@@ -2042,7 +2140,8 @@ export class Game {
             }
         }
 
-        if (this.state === 'PLAYING' && this.score >= 30 && this.boss === null) {
+        // Trigger boss fight every 30 points accumulated since the last boss fight
+        if (this.state === 'PLAYING' && this.score - this.lastBossScore >= 30 && this.boss === null) {
             this.triggerBossFight();
         }
 
@@ -2066,6 +2165,12 @@ export class Game {
                     if (dist < this.bird.currentRadius + b.radius) {
                         b.active = false;
                         this.bossBullets.splice(i, 1);
+
+                        if (this.bird.dashActive) {
+                            // Immune to boss bullets while dashing
+                            this.spawnParticleTrail(b.x, b.y, 4, true);
+                            continue;
+                        }
 
                         if (this.bird.shieldActive) {
                             this.bird.shieldActive = false;
@@ -2134,7 +2239,22 @@ export class Game {
             const dy = this.bird.y - (this.boss.y + this.boss.height / 2);
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < this.bird.currentRadius + 38) {
-                if (this.bird.shieldActive) {
+                if (this.bird.dashActive) {
+                    // Mango Dash Slam: Deal massive damage to the boss and bounce off
+                    this.bird.dashActive = false;
+                    this.dashDurationRemaining = 0;
+                    this.bird.magnetActive = false;
+                    this.magnetDurationRemaining = 0;
+                    this.bird.xOffset = 0;
+                    
+                    this.audio.playExplode();
+                    this.boss.takeDamage(20);
+                    this.spawnTextParticle("DASH SLAM! -20 HP", this.boss.x, this.boss.y - 10, '#ffd32d');
+                    this.spawnParticleTrail(this.bird.x, this.bird.y, 20, true);
+                    
+                    if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                    if (this.boss.hp <= 0) this.triggerBossDefeated();
+                } else if (this.bird.shieldActive) {
                     this.bird.shieldActive = false;
                     this.shieldDurationRemaining = 0;
                     this.audio.playShieldBreak();
@@ -2163,7 +2283,7 @@ export class Game {
             }
         }
 
-        this.bird.update(timeScale);
+        this.bird.update(timeScale, false, this.weather.gravityMultiplier);
 
         if (Math.random() < 0.35) {
             this.spawnParticleTrail(this.bird.x + this.bird.xOffset - 12, this.bird.y + (Math.random() - 0.5) * 6, 1, false);
@@ -2200,7 +2320,7 @@ export class Game {
         if (this.bird.feverActive) {
             this.pipeSpawnTimer = 0;
             this.updateFeverCoins(deltaTime, timeScale);
-        } else {
+        } else if (this.state === 'PLAYING') { // Block pipe spawning during BOSS_FIGHT
             this.pipeSpawnTimer += deltaTime;
             const baseInterval = Math.max(1100, PIPE_SPAWN_INTERVAL - (this.score * 18));
             if (this.pipeSpawnTimer > baseInterval) {
@@ -2509,6 +2629,7 @@ export class Game {
             this.state = 'PLAYING';
             this.onStateChange('PLAYING');
             this.audio.playJump();
+            this.audio.startBGM();
             this.spawnParticleTrail(this.bird.x - 8, this.bird.y, 8, true);
         }
     }
@@ -2518,5 +2639,6 @@ export class Game {
         window.removeEventListener('keydown', this.handleInput);
         this.ctx.canvas.removeEventListener('mousedown', this.handleInput);
         this.ctx.canvas.removeEventListener('touchstart', this.handleInput);
+        this.audio.close();
     }
 }
