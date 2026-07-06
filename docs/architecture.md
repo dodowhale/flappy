@@ -70,7 +70,7 @@ graph TD
   - **바람 물리 피드백**: `rainy` 및 `snowy` 상태일 때 좌우 바람의 힘(`windForce`)을 생성하여 새의 수직 속도(`velocity`) 및 수평 오프셋(`xOffset`)을 실시간 변위시킵니다.
 
 #### `BossGiant` (캔디 자이언트 보스)
-- **역할**: 점수 30점 이상 시 등장하여, 화면 중앙부에서 위아래로 호버링하며 플레이어를 조준 타격하는 거대 보스 캐릭터.
+- **역할**: 점수 15점 이상 시 등장하여, 화면 중앙부에서 위아래로 호버링하며 플레이어를 조준 타격하는 거대 보스 캐릭터.
 - **주요 특징**:
   - **오프스크린 캔버스 캐싱(Offscreen Canvas Caching)**: 매 프레임 그라디언트와 벡터 패스(Path)를 렌더링하는 부하를 줄이기 위해 별도의 오프스크린 캔버스(`offscreenCanvas`)에 캐릭터 그래픽을 드로잉 및 캐싱하여 메인 렌더링 파이프라인의 드로우 콜 성능을 극대화합니다.
   - **패턴 제어**: 1.5초 간격으로 플레이어 새의 Y좌표를 겨냥한 조준탄 발사 신호를 이벤트 콜백 형태로 릴레이합니다.
@@ -174,7 +174,7 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 - **아이템 박스**: 게임 중 20% 확률로 파이프 사이에 선물 상자가 스폰됩니다. 획득 시 5초간 자석, 쉴드, 2배 코인, 또는 피버 게이지 40% 즉시 충전 중 하나의 버프 효과가 적용됩니다.
 
 ### 4.3 캔디 자이언트 보스 레이드 스펙
-- **트리거 및 단계 전환**: 플레이어의 점수가 30점씩 추가로 누적될 때마다(30점, 60점, 90점...) 일반 파이프 생성이 일시 중단되며, 즉각 경고 알림("WARNING! BOSS APPEARED!")과 함께 `BOSS_FIGHT` 모드로 진입합니다.
+- **트리거 및 단계 전환**: 플레이어의 점수가 15점씩 추가로 누적될 때마다(15점, 30점, 45점...) 일반 파이프 생성이 일시 중단되며, 즉각 경고 알림("WARNING! BOSS APPEARED!")과 함께 `BOSS_FIGHT` 모드로 진입합니다.
 - **체력 및 대미지 교환**:
   - 보스 체력: $100\text{ HP}$ (UI 상단에 전용 체력바 렌더링).
   - 플레이어의 기본 물리 점프 시, 플레이어 측 수평 미사일(`PlayerMissile`)이 1발 발사되며 타격 시 $4$ 대미지를 줍니다.
@@ -203,8 +203,8 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 모바일 브라우저의 특수한 제약 조건과 좁은 화면 규격을 고려하여 다음과 같은 최적화 기법을 도입했습니다.
 
 ### 6.1 터치 반응성 최적화 (Touch Interaction)
-- **지연 없는 터치 제어**: 모바일 브라우저 특유의 300ms 터치 줌 대기 지연을 방지하기 위해 캔버스에 `touchstart` 리스너를 직접 바인딩하고, 스타일 시트에 `touch-action: manipulation` 및 `-webkit-tap-highlight-color: transparent`를 선언했습니다.
-- **중복 점프 방지 (Double Trigger Prevent)**: 모바일 환경에서 `touchstart`와 `mousedown`이 동시에 처리되어 이중 점프가 일어나는 현상을 막기 위해, 캔버스 터치/클릭 입력 발생 시 즉각적으로 `e.preventDefault()`를 호출하여 이벤트 중복 평가를 원천 배제했습니다.
+- **지연 없는 터치 제어**: 모바일 브라우저 특유의 300ms 터치 줌 대기 지연을 방지하고 화면 크기가 작을 때 백그라운드 영역 터치로도 조작을 수행할 수 있도록, `window` 객체에 직접 `touchstart`/`mousedown` 리스너를 바인딩했습니다. 캔버스는 물론 body, html, root 배경 영역의 터치 이벤트까지 수용하여 조작감을 개선했으며, 스타일 시트에 `touch-action: manipulation` 및 `-webkit-tap-highlight-color: transparent`를 선언했습니다.
+- **중복 점프 방지 (Double Trigger Prevent)**: 모바일 환경에서 `touchstart`와 `mousedown`이 동시에 처리되어 이중 점프가 일어나는 현상을 막기 위해, 터치/클릭 입력 발생 시 즉각적으로 `e.preventDefault()`를 호출하여 이벤트 중복 평가를 원천 배제했습니다.
 
 ### 6.2 실시간 축소 비율 피팅 (Auto-Fit Scaling Matrix)
 - 400x600 고정 크기의 게임 프레임이 가로 세로가 협소한 스마트폰(예: 360px 너비 기기) 화면에서 잘리는 현상을 예방하기 위해 **동적 CSS Scale 인자 연산**을 도입했습니다.

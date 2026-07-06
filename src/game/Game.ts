@@ -1539,8 +1539,8 @@ export class Game {
         this.initBackground();
         
         window.addEventListener('keydown', this.handleInput);
-        canvas.addEventListener('mousedown', this.handleInput);
-        canvas.addEventListener('touchstart', this.handleInput, { passive: false });
+        window.addEventListener('mousedown', this.handleInput);
+        window.addEventListener('touchstart', this.handleInput, { passive: false });
     }
 
     private initBackground() {
@@ -1784,9 +1784,14 @@ export class Game {
             return;
         }
 
-        // Prevent game input if event target is not the canvas itself (excluding keyboard events)
+        // Prevent game input if event target is not the canvas itself or the general page background (excluding keyboard events)
         if (e && !(e instanceof KeyboardEvent)) {
-            if (e.target !== this.ctx.canvas) {
+            const target = e.target as HTMLElement;
+            const isBackground = 
+                target === document.body || 
+                target === document.documentElement || 
+                target.id === 'root';
+            if (target !== this.ctx.canvas && !isBackground) {
                 return;
             }
         }
@@ -1800,6 +1805,13 @@ export class Game {
         if (e instanceof KeyboardEvent && (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyS' || e.code === 'KeyF')) {
             e.preventDefault();
             this.useActiveSkill();
+            return;
+        }
+
+        // Debug cheat: Press 'KeyB' to trigger boss fight instantly
+        if (e instanceof KeyboardEvent && e.code === 'KeyB' && this.state === 'PLAYING') {
+            e.preventDefault();
+            this.triggerBossFight();
             return;
         }
 
@@ -2140,8 +2152,8 @@ export class Game {
             }
         }
 
-        // Trigger boss fight every 30 points accumulated since the last boss fight
-        if (this.state === 'PLAYING' && this.score - this.lastBossScore >= 30 && this.boss === null) {
+        // Trigger boss fight every 15 points accumulated since the last boss fight
+        if (this.state === 'PLAYING' && this.score - this.lastBossScore >= 15 && this.boss === null) {
             this.triggerBossFight();
         }
 
@@ -2637,8 +2649,8 @@ export class Game {
     public stop() {
         cancelAnimationFrame(this.animationId);
         window.removeEventListener('keydown', this.handleInput);
-        this.ctx.canvas.removeEventListener('mousedown', this.handleInput);
-        this.ctx.canvas.removeEventListener('touchstart', this.handleInput);
+        window.removeEventListener('mousedown', this.handleInput);
+        window.removeEventListener('touchstart', this.handleInput);
         this.audio.close();
     }
 }

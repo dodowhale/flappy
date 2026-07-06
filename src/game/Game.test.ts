@@ -203,7 +203,7 @@ describe("Flappy Bird Game Logic Tests", () => {
         expect((game as any).state).toBe("PLAYING");
 
         // 2. Boss Trigger Cycle
-        (game as any).score = 30;
+        (game as any).score = 15;
         // Trigger update loop step
         (game as any).update(16.67);
         
@@ -246,19 +246,19 @@ describe("Flappy Bird Game Logic Tests", () => {
         (game as any).triggerBossDefeated();
         expect((game as any).state).toBe("PLAYING");
         expect((game as any).boss).toBeNull();
-        expect((game as any).lastBossScore).toBe(30);
+        expect((game as any).lastBossScore).toBe(15);
 
         // Coins spawned as reward should have isBossReward = true
         const rewardCoin = (game as any).coins[0];
         expect(rewardCoin).toBeDefined();
         expect(rewardCoin.isBossReward).toBe(true);
 
-        // 5. Subsequent boss trigger (next 30 points accumulated, so score = 60)
-        (game as any).score = 59;
+        // 5. Subsequent boss trigger (next 15 points accumulated, so score = 30)
+        (game as any).score = 29;
         (game as any).update(16.67);
-        expect((game as any).state).toBe("PLAYING"); // Not yet 60
+        expect((game as any).state).toBe("PLAYING"); // Not yet 30
 
-        (game as any).score = 60;
+        (game as any).score = 30;
         (game as any).update(16.67);
         expect((game as any).state).toBe("BOSS_FIGHT"); // Triggered again!
     });
