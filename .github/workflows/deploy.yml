@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - main
-      - master # 지원을 위해 main 또는 master 브랜치 둘 다 반영
+      - master
+    paths:
+      - 'package.json'
+      - '.github/workflows/**'
 
 permissions:
   contents: write
