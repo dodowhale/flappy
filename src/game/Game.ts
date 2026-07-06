@@ -1784,15 +1784,18 @@ export class Game {
             return;
         }
 
-        // Prevent game input if event target is not the canvas itself or the general page background (excluding keyboard events)
+        // Prevent game input if event target is inside the game-container but is not the canvas itself (excluding keyboard events)
         if (e && !(e instanceof KeyboardEvent)) {
             const target = e.target as HTMLElement;
-            const isBackground = 
-                target === document.body || 
-                target === document.documentElement || 
-                target.id === 'root';
-            if (target !== this.ctx.canvas && !isBackground) {
-                return;
+            const container = document.getElementById('game-container');
+            if (container) {
+                if (container.contains(target) && target !== this.ctx.canvas) {
+                    return;
+                }
+            } else {
+                if (target !== this.ctx.canvas) {
+                    return;
+                }
             }
         }
 

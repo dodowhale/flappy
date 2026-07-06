@@ -277,7 +277,7 @@ const App = () => {
             background: 'linear-gradient(135deg, #ffeaf2 0%, #efe5fd 50%, #e6f5ff 100%)',
             'font-family': '"Fredoka", "Nunito", sans-serif'
         }}>
-            <div style={{ 
+            <div id="game-container" style={{ 
                 position: 'relative', 
                 width: '400px', 
                 height: '600px', 
