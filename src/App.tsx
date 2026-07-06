@@ -1,5 +1,6 @@
 import { onMount, createSignal, Show, onCleanup, For, createEffect } from 'solid-js';
 import { Game, type GameState, CHARACTERS } from './game/Game';
+import packageJson from '../package.json';
 
 interface LeaderboardEntry {
     name: string;
@@ -988,6 +989,21 @@ const App = () => {
                 </Show>
 
                 <canvas ref={canvasRef} width="400" height="600" />
+
+                {/* Game Version Label */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    right: '18px',
+                    color: 'rgba(74, 44, 0, 0.45)',
+                    'font-size': '11px',
+                    'font-weight': 'bold',
+                    'z-index': 10,
+                    'pointer-events': 'none',
+                    'font-family': '"Fredoka", sans-serif'
+                }}>
+                    v{packageJson.version}
+                </div>
             </div>
             
             <style>{`
