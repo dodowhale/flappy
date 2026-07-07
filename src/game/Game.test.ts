@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll } from "bun:test";
-import { Game, CHARACTERS, Bird, Coin, ItemBox, WeatherSystem, Pipe } from "./Game";
+import { Game, CHARACTERS, Bird, Coin, ItemBox, WeatherSystem } from "./Game";
 
 // Mock minimal browser globals needed for game classes instantiation in Bun test environment
 beforeAll(() => {

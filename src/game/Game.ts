@@ -1679,7 +1679,7 @@ export class Game {
             }
             
             if (!this.bird.feverActive) {
-                this.feverGauge = Math.min(100, this.feverGauge + 25);
+                this.feverGauge = Math.min(100, this.feverGauge + 12);
                 this.onFeverGaugeChange(this.feverGauge);
                 if (this.feverGauge >= 100) {
                     this.triggerFeverMode();
@@ -1690,7 +1690,7 @@ export class Game {
             this.spawnTextParticle("Good", this.bird.x + this.bird.xOffset, this.bird.y - 20, '#a29bfe');
 
             if (!this.bird.feverActive) {
-                this.feverGauge = Math.min(100, this.feverGauge + 5);
+                this.feverGauge = Math.min(100, this.feverGauge + 2);
                 this.onFeverGaugeChange(this.feverGauge);
                 if (this.feverGauge >= 100) {
                     this.triggerFeverMode();
@@ -2103,7 +2103,7 @@ export class Game {
 
                     // Increase Fever Gauge
                     if (!this.bird.feverActive) {
-                        this.feverGauge = Math.min(100, this.feverGauge + 4);
+                        this.feverGauge = Math.min(100, this.feverGauge + 2);
                         this.onFeverGaugeChange(this.feverGauge);
                         if (this.feverGauge >= 100) {
                             this.triggerFeverMode();
@@ -2149,7 +2149,7 @@ export class Game {
                         this.itemDoubleCoinRemaining = 5000;
                         text = "DOUBLE COIN!";
                     } else if (box.type === 'fever_drink') {
-                        this.feverGauge = Math.min(100, this.feverGauge + 40);
+                        this.feverGauge = Math.min(100, this.feverGauge + 20);
                         this.onFeverGaugeChange(this.feverGauge);
                         text = "FEVER DRINK!";
                         if (this.feverGauge >= 100) {
@@ -2236,7 +2236,7 @@ export class Game {
                     
                     // Add fever gauge on hit
                     if (!this.bird.feverActive) {
-                        this.feverGauge = Math.min(100, this.feverGauge + 2);
+                        this.feverGauge = Math.min(100, this.feverGauge + 1);
                         this.onFeverGaugeChange(this.feverGauge);
                         if (this.feverGauge >= 100) {
                             this.triggerFeverMode();
@@ -2295,7 +2295,7 @@ export class Game {
 
                         // Add fever gauge on shield slam
                         if (!this.bird.feverActive) {
-                            this.feverGauge = Math.min(100, this.feverGauge + 10);
+                            this.feverGauge = Math.min(100, this.feverGauge + 5);
                             this.onFeverGaugeChange(this.feverGauge);
                             if (this.feverGauge >= 100) {
                                 this.triggerFeverMode();

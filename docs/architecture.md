@@ -139,13 +139,13 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
   $$\text{dist} = \sqrt{(x_{\text{bird}} - x_{\text{boss}})^2 + (y_{\text{bird}} - y_{\text{boss}})^2}$$
   $$v_x = \frac{x_{\text{bird}} - x_{\text{boss}}}{\text{dist}} \times 4.2, \quad v_y = \frac{y_{\text{bird}} - y_{\text{boss}}}{\text{dist}} \times 4.2$$
 - **쉴드 슬램(Shield Slam) 피해 공식**: 플레이어가 쉴드를 장착한 상태에서 보스 충돌 반경(38px) 이내로 충돌 시, 쉴드가 터지며 충돌 방어 및 무적 타임(1.2초) 부여와 함께 보스에게 15의 폭발 대미지를 가합니다.
-  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 15), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 10)$$
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 15), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 5)$$
 - **망고 대시 슬램(Dash Slam) 피해 공식**: 플레이어가 망고새의 무적 돌진(`dashActive`가 true) 상태일 때 보스 충돌 반경(38px) 이내로 충돌하면 보스에게 20의 강력한 충돌 대미지를 가하며, 대시 상태가 즉각 해제되고 수평 오프셋 위치가 원래 비행 좌표로 안전하게 복귀됩니다.
   $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 20)$$
 - **체리 캔디 블래스트(Candy Blast) 보스 타격 공식**: 보스전 도중 체리새의 액티브 스킬을 시전하면 화면 내의 모든 보스 조준탄(`bossBullets`)이 소멸 파티클과 함께 파괴되며, 보스에게 12의 큰 광역 대미지를 입힙니다.
   $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 12)$$
 - **일반 미사일 피해 공식**: 점프당 1발씩 발사되는 플레이어 미사일이 보스 히트박스(40px) 이내로 도달 시 4의 일반 대미지를 입힙니다.
-  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 4), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 2)$$
+  $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 4), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 1)$$
 
 ---
 
@@ -170,8 +170,8 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
    - **효과**: 게이지와 무관하게 즉시 5초 동안 피버 모드에 돌입하며 피버 중 획득하는 코인이 2배가 됩니다.
 
 ### 4.2 피버 게이지 및 아이템 박스 시스템
-- **피버 게이지**: 파이프 통과(Good: +5%, Perfect: +25%), 코인 획득(+4%), 보스 타격(+2%) 시 게이지가 차오르며, 100% 도달 시 5초간 자동으로 무적 피버 모드가 발동되어 코인이 뱀 패턴으로 쏟아집니다.
-- **아이템 박스**: 게임 중 20% 확률로 파이프 사이에 선물 상자가 스폰됩니다. 획득 시 5초간 자석, 쉴드, 2배 코인, 또는 피버 게이지 40% 즉시 충전 중 하나의 버프 효과가 적용됩니다.
+- **피버 게이지**: 파이프 통과(Good: +2%, Perfect: +12%), 코인 획득(+2%), 보스 타격(+1%) 시 게이지가 차오르며, 100% 도달 시 5초간 자동으로 무적 피버 모드가 발동되어 코인이 뱀 패턴으로 쏟아집니다.
+- **아이템 박스**: 게임 중 20% 확률로 파이프 사이에 선물 상자가 스폰됩니다. 획득 시 5초간 자석, 쉴드, 2배 코인, 또는 피버 게이지 20% 즉시 충전 중 하나의 버프 효과가 적용됩니다.
 
 ### 4.3 캔디 자이언트 보스 레이드 스펙
 - **트리거 및 단계 전환**: 플레이어의 점수가 15점씩 추가로 누적될 때마다(15점, 30점, 45점...) 일반 파이프 생성이 일시 중단되며, 즉각 경고 알림("WARNING! BOSS APPEARED!")과 함께 `BOSS_FIGHT` 모드로 진입합니다.
@@ -217,7 +217,7 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 서버 연결이 완전히 끊긴 환경에서도 언제 어디서나 단독 웹앱으로 구동되고 홈 화면에 설치 가능하도록 PWA 아키텍처를 도입했습니다.
 
 ### 7.1 서비스 워커 캐싱 및 중재 전략 ([sw.js](file:///Users/east/work/flappy/sw.js))
-- **코어 자산 프리캐싱 (Pre-caching)**: 서비스 워커 설치(`install`) 단계에서 진입점 HTML, SolidJS 컴파일 번들(`dist/index.js`), PWA Manifest, 그리고 앱 아이콘을 캐시 스토리지(`sweet-flappy-cache-v1`)에 즉각 저장합니다.
+- **코어 자산 프리캐싱 (Pre-caching)**: 서비스 워커 설치(`install`) 단계에서 진입점 HTML, SolidJS 컴파일 번들(`dist/index.js`), PWA Manifest, 그리고 앱 아이콘을 캐시 스토리지(`sweet-flappy-cache-v5`)에 즉각 저장합니다.
 - **Stale-While-Revalidate (SWR) 중재**: 네트워크 GET 요청 발생 시, 캐시 스토리지에 매칭되는 데이터가 존재하면 즉각 캐시를 반환하여 로딩 시간을 0ms로 단축합니다. 그와 동시에 백그라운드로 서버와 동기화하여 캐시를 조용히 갱신합니다. (네트워크 단절 시에는 에러 없이 캐시 데이터가 정식 서빙됩니다.)
 
 ### 7.2 클라이언트-사이드 오프라인 예외 처리 ([src/App.tsx](file:///Users/east/work/flappy/src/App.tsx))

@@ -41,7 +41,7 @@ async function triggerRebuild() {
   }
 }
 
-watch("./src", { recursive: true }, (event, filename) => {
+watch("./src", { recursive: true }, (_, filename) => {
   if (filename) {
     triggerRebuild();
   }
