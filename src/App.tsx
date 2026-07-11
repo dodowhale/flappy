@@ -55,11 +55,26 @@ const App = () => {
     const updateScale = () => {
         const w = window.innerWidth;
         const h = window.innerHeight;
+        
+        // 480px 미만 너비 또는 720px 미만 높이는 작은 화면(모바일)로 정의
+        const isSmallScreen = w < 480 || h < 720;
+        
+        // 작은 화면은 여백 최소화(상하좌우 12px씩, 총 24px), 큰 화면(태블릿/PC)은 넉넉하게 적용(상하좌우 40px씩, 총 80px)
+        const padding = isSmallScreen ? 24 : 80;
+        
         // Game frame is 400x600, with border thickness (8px * 2) = 416x616 total dimensions
-        const scaleX = (w - 24) / 416;
-        const scaleY = (h - 24) / 616;
-        // Cap at 1.0 (do not enlarge on giant desktops, only scale down on smaller mobile devices)
-        const fitScale = Math.min(1.0, Math.min(scaleX, scaleY));
+        const scaleX = (w - padding) / 416;
+        const scaleY = (h - padding) / 616;
+        
+        let fitScale = Math.min(scaleX, scaleY);
+        
+        // 큰 화면에서 너무 거대해지는 것을 예방하기 위한 최대 스케일 제한 (모바일 최대 1.2배, 태블릿/PC 최대 1.6배)
+        const maxScale = isSmallScreen ? 1.2 : 1.6;
+        fitScale = Math.min(maxScale, fitScale);
+        
+        // 비정상적으로 뷰포트가 작을 때 깨지지 않도록 하는 최소 스케일
+        fitScale = Math.max(0.3, fitScale);
+        
         setScale(fitScale);
     };
 
@@ -273,6 +288,7 @@ const App = () => {
             display: 'flex',
             'justify-content': 'center',
             'align-items': 'center',
+            width: '100vw',
             height: '100vh',
             background: 'linear-gradient(135deg, #ffeaf2 0%, #efe5fd 50%, #e6f5ff 100%)',
             'font-family': '"Fredoka", "Nunito", sans-serif'
