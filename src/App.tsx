@@ -7,6 +7,26 @@ interface LeaderboardEntry {
     score: number;
 }
 
+const LollipopIcon = (props: { size?: number, color?: string }) => {
+    const size = props.size || 16;
+    const color = props.color || '#ff7675';
+    return (
+        <svg 
+            width={size} 
+            height={size} 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ display: 'inline-block', 'vertical-align': 'middle' }}
+        >
+            <circle cx="12" cy="9" r="7" fill={color} stroke="#4a2c00" stroke-width="2.5"/>
+            <path d="M12 9a4 4 0 0 1-4 0" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 9a4 4 0 0 0 4 0" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 16v6" stroke="#4a2c00" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+    );
+};
+
 const App = () => {
     let canvasRef: HTMLCanvasElement | undefined;
     let gameInstance: Game | undefined;
@@ -407,7 +427,7 @@ const App = () => {
                 </Show>
 
                 {/* Candy Star Coin Counter */}
-                <div style={{
+                <button style={{
                     position: 'absolute',
                     top: '14px',
                     left: '18px',
@@ -422,11 +442,12 @@ const App = () => {
                     'align-items': 'center',
                     'gap': '5px',
                     'z-index': 10,
-                    'cursor': 'pointer'
+                    'cursor': 'pointer',
+                    'font-family': '"Fredoka", "Nunito", sans-serif'
                 }} onClick={(e) => { e.stopPropagation(); setIsShopOpen(true); }}>
                     <span>🌟</span>
                     <span>{coins()}</span>
-                </div>
+                </button>
 
                 {/* Fever Gauge Overlay during game */}
                 <Show when={gameState() === 'PLAYING' || gameState() === 'BOSS_FIGHT'}>
@@ -592,12 +613,16 @@ const App = () => {
                             'cursor': 'pointer',
                             'box-shadow': '0 4px 0 #4a2c00',
                             'transition': 'all 0.1s',
-                            'white-space': 'nowrap'
+                            'white-space': 'nowrap',
+                            'display': 'flex',
+                            'align-items': 'center',
+                            'gap': '8px',
+                            'font-family': '"Fredoka", sans-serif'
                         }}
                         onMouseDown={(e) => e.currentTarget.style.transform = 'translate(-50%, 4px)'}
                         onMouseUp={(e) => e.currentTarget.style.transform = 'translate(-50%, 0)'}
                     >
-                        🍭 CHUBBY SHOP 🍭
+                        <LollipopIcon size={18} color="#ffffff" /> CHUBBY SHOP <LollipopIcon size={18} color="#ffffff" />
                     </button>
                 </Show>
 
@@ -760,12 +785,16 @@ const App = () => {
                                         'font-weight': 'bold',
                                         'cursor': 'pointer',
                                         'box-shadow': '0 4px 0 #4a2c00',
-                                        'font-family': '"Fredoka", sans-serif'
+                                        'font-family': '"Fredoka", sans-serif',
+                                        'display': 'flex',
+                                        'align-items': 'center',
+                                        'justify-content': 'center',
+                                        'gap': '4px'
                                     }}
                                 >
-                                    🍭 SHOP
+                                    <LollipopIcon size={14} color="#ffffff" /> SHOP
                                 </button>
-                                <div 
+                                <button 
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (gameInstance) gameInstance.restartGame();
@@ -781,11 +810,16 @@ const App = () => {
                                         'border': '3px solid #4a2c00',
                                         'font-weight': 'bold',
                                         'cursor': 'pointer',
-                                        'box-shadow': '0 4px 0 #4a2c00'
+                                        'box-shadow': '0 4px 0 #4a2c00',
+                                        'font-family': '"Fredoka", sans-serif',
+                                        'display': 'flex',
+                                        'align-items': 'center',
+                                        'justify-content': 'center',
+                                        'gap': '6px'
                                     }}
                                 >
-                                    🍭 RESTART 🍭
-                                </div>
+                                    <LollipopIcon size={14} color="#ffffff" /> RESTART <LollipopIcon size={14} color="#ffffff" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -828,8 +862,16 @@ const App = () => {
                                 'padding-bottom': '10px',
                                 'margin-bottom': '15px'
                             }}>
-                                <h2 style={{ margin: 0, 'font-size': '24px', color: '#ff7675', 'text-shadow': '2px 2px 0 #4a2c00' }}>
-                                    🍭 CHUBBY SHOP
+                                <h2 style={{ 
+                                    margin: 0, 
+                                    'font-size': '24px', 
+                                    color: '#ff7675', 
+                                    'text-shadow': '2px 2px 0 #4a2c00',
+                                    'display': 'flex',
+                                    'align-items': 'center',
+                                    'gap': '8px'
+                                }}>
+                                    <LollipopIcon size={24} color="#ff7675" /> CHUBBY SHOP
                                 </h2>
                                 <div style={{
                                     'background': '#ffffff',

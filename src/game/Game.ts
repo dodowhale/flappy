@@ -207,17 +207,19 @@ class AudioManager {
             oscBass.stop(time + 0.48);
 
             // Clean up Bass Nodes after playing to prevent memory leak
+            const bassDelay = Math.max(0, (time - this.ctx.currentTime + 0.6) * 1000);
             setTimeout(() => {
                 oscBass.disconnect();
                 gainBass.disconnect();
-            }, (time - this.ctx!.currentTime + 0.6) * 1000);
+            }, bassDelay);
         }
 
         // Clean up Lead Melody Nodes after playing to prevent memory leak
+        const melodyDelay = Math.max(0, (time - this.ctx.currentTime + 0.35) * 1000);
         setTimeout(() => {
             oscMelody.disconnect();
             gainMelody.disconnect();
-        }, (time - this.ctx!.currentTime + 0.35) * 1000);
+        }, melodyDelay);
     }
 
     public stopBGM() {
@@ -630,6 +632,7 @@ export class Bird {
     public glideActive: boolean = false;
     public xOffset: number = 0;
     public feverActive: boolean = false;
+    public invincibleActive: boolean = false;
 
     constructor(canvasHeight: number) {
         this.y = canvasHeight / 2;
@@ -662,6 +665,10 @@ export class Bird {
         const r = this.currentRadius;
 
         ctx.save();
+        if (this.invincibleActive) {
+            // Smooth shimmering alpha animation for invincibility visual cue
+            ctx.globalAlpha = 0.55 + Math.sin(performance.now() * 0.02) * 0.25;
+        }
         ctx.translate(this.x + this.xOffset, this.y);
         ctx.rotate(this.rotation);
 
@@ -1519,6 +1526,7 @@ export class Game {
     private feverDurationRemaining: number = 0;
     private itemDoubleCoinRemaining: number = 0;
     private skillCooldownRemaining: number = 0;
+    private invincibleDurationRemaining: number = 0;
 
     // Parallax Layers
     private bgLayers: BackgroundLayer[] = [];
@@ -1892,6 +1900,8 @@ export class Game {
         this.onFeverGaugeChange(0);
         this.skillCooldownRemaining = 0;
         this.onCooldownUpdate(0, 1);
+        this.invincibleDurationRemaining = 0;
+        this.bird.invincibleActive = false;
     }
 
     public start() {
@@ -1900,8 +1910,8 @@ export class Game {
     }
 
     private checkCollision(): boolean {
-        // Zesty Flash dash (LEMON) invincibility
-        if (this.bird.dashActive) {
+        // Invincibility or Dash active
+        if (this.bird.dashActive || this.bird.invincibleActive) {
             return false;
         }
 
@@ -1955,7 +1965,7 @@ export class Game {
         const gap = this.currentGap;
 
         // Update BGM tempo and pitch factoring speed and fever state
-        if (this.state === 'PLAYING') {
+        if (this.state === 'PLAYING' || this.state === 'BOSS_FIGHT') {
             const speedFactor = speed / GAME_SPEED;
             this.audio.updateBGMTempo(speedFactor, this.bird.feverActive);
         }
@@ -1986,7 +1996,13 @@ export class Game {
         if (this.groundX <= -60) this.groundX += 60;
 
         // Update Skill / Buff remaining durations
-        if (this.state === 'PLAYING') {
+        if (this.state === 'PLAYING' || this.state === 'BOSS_FIGHT') {
+            if (this.invincibleDurationRemaining > 0) {
+                this.invincibleDurationRemaining = Math.max(0, this.invincibleDurationRemaining - deltaTime);
+                if (this.invincibleDurationRemaining === 0) {
+                    this.bird.invincibleActive = false;
+                }
+            }
             if (this.shieldDurationRemaining > 0) {
                 this.shieldDurationRemaining = Math.max(0, this.shieldDurationRemaining - deltaTime);
                 if (this.shieldDurationRemaining === 0) {
@@ -2187,6 +2203,11 @@ export class Game {
                 b.update(timeScale);
 
                 if (b.active) {
+                    // Ignore bullet if bird is currently invincible
+                    if (this.bird.invincibleActive) {
+                        continue;
+                    }
+
                     const dx = (this.bird.x + this.bird.xOffset) - b.x;
                     const dy = this.bird.y - b.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2203,7 +2224,21 @@ export class Game {
                         if (this.bird.shieldActive) {
                             this.bird.shieldActive = false;
                             this.shieldDurationRemaining = 0;
+                            this.bird.invincibleActive = true;
+                            this.invincibleDurationRemaining = 1200; // 1.2s invincibility
                             this.audio.playShieldBreak();
+                            
+                            // Shield Slam on bullet: Reflect blast damage to boss!
+                            if (this.boss) {
+                                this.boss.takeDamage(15);
+                                this.spawnTextParticle("SHIELD SLAM! -15 HP", this.boss.x, this.boss.y - 10, '#74b9ff');
+                                this.spawnParticleTrail(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, 14, true);
+                                if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                                if (this.boss.hp <= 0) {
+                                    this.triggerBossDefeated();
+                                    return; // Exit update frame
+                                }
+                            }
                             this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
                         } else {
                             this.state = 'GAME_OVER';
@@ -2265,56 +2300,68 @@ export class Game {
 
             // Direct collision check: bird with boss body
             if (this.boss) {
-                const dx = (this.bird.x + this.bird.xOffset) - (this.boss.x + this.boss.width / 2);
-                const dy = this.bird.y - (this.boss.y + this.boss.height / 2);
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < this.bird.currentRadius + 38) {
-                    if (this.bird.dashActive) {
-                        // Mango Dash Slam: Deal massive damage to the boss and bounce off
-                        this.bird.dashActive = false;
-                        this.dashDurationRemaining = 0;
-                        this.bird.magnetActive = false;
-                        this.magnetDurationRemaining = 0;
-                        this.bird.xOffset = 0;
-                        
-                        this.audio.playExplode();
-                        this.boss.takeDamage(20);
-                        this.spawnTextParticle("DASH SLAM! -20 HP", this.boss.x, this.boss.y - 10, '#ffd32d');
-                        this.spawnParticleTrail(this.bird.x, this.bird.y, 20, true);
-                        
-                        if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
-                        if (this.boss.hp <= 0) {
-                            this.triggerBossDefeated();
-                            return; // Exit update frame immediately
-                        }
-                    } else if (this.bird.shieldActive) {
-                        this.bird.shieldActive = false;
-                        this.shieldDurationRemaining = 0;
-                        this.audio.playShieldBreak();
-                        this.boss.takeDamage(15);
-
-                        // Add fever gauge on shield slam
-                        if (!this.bird.feverActive) {
-                            this.feverGauge = Math.min(100, this.feverGauge + 5);
-                            this.onFeverGaugeChange(this.feverGauge);
-                            if (this.feverGauge >= 100) {
-                                this.triggerFeverMode();
+                // If bird is currently invincible, ignore body collision check
+                if (this.bird.invincibleActive) {
+                    // Do nothing
+                } else {
+                    const dx = (this.bird.x + this.bird.xOffset) - (this.boss.x + this.boss.width / 2);
+                    const dy = this.bird.y - (this.boss.y + this.boss.height / 2);
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < this.bird.currentRadius + 38) {
+                        if (this.bird.dashActive) {
+                            // Mango Dash Slam: Deal massive damage to the boss and bounce off
+                            this.bird.dashActive = false;
+                            this.dashDurationRemaining = 0;
+                            this.bird.magnetActive = false;
+                            this.magnetDurationRemaining = 0;
+                            this.bird.xOffset = 0;
+                            
+                            this.bird.invincibleActive = true;
+                            this.invincibleDurationRemaining = 1200; // 1.2s invincibility
+                            
+                            this.audio.playExplode();
+                            this.boss.takeDamage(20);
+                            this.spawnTextParticle("DASH SLAM! -20 HP", this.boss.x, this.boss.y - 10, '#ffd32d');
+                            this.spawnParticleTrail(this.bird.x, this.bird.y, 20, true);
+                            
+                            if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                            if (this.boss.hp <= 0) {
+                                this.triggerBossDefeated();
+                                return; // Exit update frame immediately
                             }
-                        }
+                        } else if (this.bird.shieldActive) {
+                            this.bird.shieldActive = false;
+                            this.shieldDurationRemaining = 0;
+                            
+                            this.bird.invincibleActive = true;
+                            this.invincibleDurationRemaining = 1200; // 1.2s invincibility
+                            
+                            this.audio.playShieldBreak();
+                            this.boss.takeDamage(15);
 
-                        this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
-                        if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
-                        if (this.boss.hp <= 0) {
-                            this.triggerBossDefeated();
-                            return; // Exit update frame immediately
+                            // Add fever gauge on shield slam
+                            if (!this.bird.feverActive) {
+                                this.feverGauge = Math.min(100, this.feverGauge + 5);
+                                this.onFeverGaugeChange(this.feverGauge);
+                                if (this.feverGauge >= 100) {
+                                    this.triggerFeverMode();
+                                }
+                            }
+
+                            this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
+                            if (this.onBossHpChange) this.onBossHpChange(this.boss.hp, this.boss.maxHp);
+                            if (this.boss.hp <= 0) {
+                                this.triggerBossDefeated();
+                                return; // Exit update frame immediately
+                            }
+                        } else {
+                            this.state = 'GAME_OVER';
+                            this.onStateChange('GAME_OVER');
+                            this.audio.playHit();
+                            this.audio.stopBGM();
+                            this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
+                            return;
                         }
-                    } else {
-                        this.state = 'GAME_OVER';
-                        this.onStateChange('GAME_OVER');
-                        this.audio.playHit();
-                        this.audio.stopBGM();
-                        this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 16, true);
-                        return;
                     }
                 }
             }
@@ -2331,6 +2378,8 @@ export class Game {
                 // Pop shield protection!
                 this.bird.shieldActive = false;
                 this.shieldDurationRemaining = 0;
+                this.bird.invincibleActive = true;
+                this.invincibleDurationRemaining = 1200; // 1.2s invincibility
                 this.audio.playShieldBreak();
                 this.spawnParticleTrail(this.bird.x + this.bird.xOffset, this.bird.y, 14, true);
 
@@ -2515,7 +2564,7 @@ export class Game {
             this.ctx.textAlign = 'center';
             this.ctx.shadowBlur = 0;
             this.ctx.fillStyle = '#ffeaa7';
-            this.ctx.fillText('🍭 TAP OR SPACE TO JUMP 🍭', width / 2, height / 2 + 25);
+            this.ctx.fillText('✨ TAP OR SPACE TO JUMP ✨', width / 2, height / 2 + 25);
         }
     }
 

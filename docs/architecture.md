@@ -94,7 +94,7 @@ graph TD
 | **Phase 4 (고수)** | 25점 이상 | $3.5$ | $125\text{px}$ | $\pm 1.25\text{px/frame}$ (빠르게 왕복) |
 
 ### 3.2 쿨타임 델타 차감 및 동기화
-`Game.update(deltaTime)`에서 프레임당 밀리초 단위로 쿨타임을 정밀하게 차감하여 SolidJS에 실시간 비동기 콜백을 보냅니다.
+`Game.update(deltaTime)`에서 프레임당 밀리초 단위로 쿨타임을 정밀하게 차감하여 SolidJS에 실시간 비동기 콜백을 보냅니다. 본 물리 타이머 갱신 로직은 일반 비행 상태(`PLAYING`)뿐만 아니라 보스전 상태(`BOSS_FIGHT`)에서도 동일하게 연속적으로 수행되므로, 보스전 도중 액티브 스킬을 시전해도 쿨타임이 정상 차감 및 복구되고 버프 지속시간과 슬라이드 백 오프셋이 비동기적으로 올바르게 갱신됩니다.
 
 $$\text{skillCooldownRemaining} \leftarrow \max(0, \text{skillCooldownRemaining} - \text{deltaTime})$$
 
@@ -138,9 +138,9 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 - **보스 탄환 궤적 각도 산출**: 보스가 1.5초마다 플레이어 위치($x_{\text{bird}}, y_{\text{bird}}$)를 실시간 추적하여 조준탄의 수평/수직 분속 벡터($v_x, v_y$)를 계산합니다.
   $$\text{dist} = \sqrt{(x_{\text{bird}} - x_{\text{boss}})^2 + (y_{\text{bird}} - y_{\text{boss}})^2}$$
   $$v_x = \frac{x_{\text{bird}} - x_{\text{boss}}}{\text{dist}} \times 4.2, \quad v_y = \frac{y_{\text{bird}} - y_{\text{boss}}}{\text{dist}} \times 4.2$$
-- **쉴드 슬램(Shield Slam) 피해 공식**: 플레이어가 쉴드를 장착한 상태에서 보스 충돌 반경(38px) 이내로 충돌 시, 쉴드가 터지며 충돌 방어 및 무적 타임(1.2초) 부여와 함께 보스에게 15의 폭발 대미지를 가합니다.
+- **쉴드 슬램(Shield Slam) 피해 공식**: 플레이어가 쉴드를 장착한 상태에서 보스 충돌 반경(38px) 이내로 충돌하거나 날아오는 보스 탄환(BossBullet)을 쉴드로 방어했을 때, 쉴드가 터지며 충돌 방어 및 1.2초의 무적 시간이 부여되고 보스에게 15의 폭발/반사 대미지를 가합니다.
   $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 15), \quad \text{feverGauge} \leftarrow \min(100, \text{feverGauge} + 5)$$
-- **망고 대시 슬램(Dash Slam) 피해 공식**: 플레이어가 망고새의 무적 돌진(`dashActive`가 true) 상태일 때 보스 충돌 반경(38px) 이내로 충돌하면 보스에게 20의 강력한 충돌 대미지를 가하며, 대시 상태가 즉각 해제되고 수평 오프셋 위치가 원래 비행 좌표로 안전하게 복귀됩니다.
+- **망고 대시 슬램(Dash Slam) 피해 공식**: 플레이어가 망고새의 무적 돌진(`dashActive`가 true) 상태일 때 보스 충돌 반경(38px) 이내로 충돌하면 보스에게 20의 강력한 충돌 대미지를 가하며, 대시 상태가 즉각 해제되고 1.2초의 안전 무적 시간 부여와 함께 수평 오프셋 위치가 원래 비행 좌표로 안전하게 복귀됩니다.
   $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 20)$$
 - **체리 캔디 블래스트(Candy Blast) 보스 타격 공식**: 보스전 도중 체리새의 액티브 스킬을 시전하면 화면 내의 모든 보스 조준탄(`bossBullets`)이 소멸 파티클과 함께 파괴되며, 보스에게 12의 큰 광역 대미지를 입힙니다.
   $$\text{hp}_{\text{boss}} \leftarrow \max(0, \text{hp}_{\text{boss}} - 12)$$
@@ -178,8 +178,8 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 - **체력 및 대미지 교환**:
   - 보스 체력: $100\text{ HP}$ (UI 상단에 전용 체력바 렌더링).
   - 플레이어의 기본 물리 점프 시, 플레이어 측 수평 미사일(`PlayerMissile`)이 1발 발사되며 타격 시 $4$ 대미지를 줍니다.
-  - 플레이어가 `shieldActive` 상태일 때 보스 본체와 충돌하면 쉴드가 파괴되면서 보스에게 $15$ 대미지를 줍니다(Shield Slam).
-  - 플레이어가 `dashActive` (무적 대시) 상태일 때 보스 본체와 충돌하면 보스에게 $20$ 대미지를 주며 대시 무적과 오프셋 비행이 즉시 해제됩니다(Dash Slam).
+  - 플레이어가 `shieldActive` 상태일 때 보스 본체와 충돌하거나 보스 탄환(BossBullet)을 쉴드로 방어하면 쉴드가 파괴되면서 1.2초 무적 시간 부여와 함께 보스에게 $15$ 대미지를 줍니다(Shield Slam).
+  - 플레이어가 `dashActive` (무적 대시) 상태일 때 보스 본체와 충돌하면 보스에게 $20$ 대미지를 주며 대시 무적과 오프셋 비행이 즉시 해제되고 1.2초 안전 무적 시간이 부여됩니다(Dash Slam).
 - **격퇴 보상 및 복구**:
   - 보스 체력이 $0$이 되면 보스가 격퇴되며 해당 좌표 주위로 25개의 코인이 무작위 분산 스폰됩니다.
   - 격퇴 보상 코인은 `isBossReward` 특수 물리 플래그가 지정되어 플레이어의 자력 상태 유무와 관계없이 강력하게 플레이어에게 당겨져 자동 획득됩니다(최대 흡입 반경 $350\text{px}$).
@@ -240,6 +240,7 @@ $$\text{remainingSeconds} = \left\lceil \frac{\text{skillCooldownRemaining}}{100
 ### 8.1 Web Audio API 컨텍스트 정리 및 누수 차단
 - **AudioContext 해제 파이프라인**: SolidJS 컴포넌트 마운트 해제(`onCleanup`) 시 또는 게임 엔진 정지(`stop()`) 시, `AudioManager` 인스턴스에 명시적인 `close()` 파이프라인을 실행합니다.
 - `this.ctx.close()`를 동기적으로 호출하여 브라우저 가상 스레드에 할당된 오디오 하드웨어 컨텍스트 리소스를 명확히 반환함으로써, SPA 환경에서 게임 재시작이나 잦은 페이지 진입 시 브라우저 오디오 컨텍스트 개수 한도 초과로 소리가 재생되지 않는 고질적인 오디오 엔진 크래시 문제를 차단합니다.
+- **비동기 정리 안전성 보완**: BGM 노드 정리 작업(`scheduleNote` 내부의 `setTimeout`)이 백그라운드에서 비동기적으로 수행될 때, `close()` 호출로 인해 `this.ctx`가 `null`이 되더라도 `TypeError`가 발생하지 않도록 `delay` 계산을 비동기 콜백 바깥에서 동기적으로 선처리(Pre-calculation)하여 오디오 시스템의 비동기 안전성을 극대화했습니다.
 
 ### 8.2 SolidJS 세밀한 반응성(Fine-Grained Reactivity) 오버헤드 감축
 - **Signal 업데이트 임계치 적용**: 쿨타임 타이머(`skillCdRemaining`) 및 피버 게이지(`feverGauge`)는 런타임에 밀리초 단위 혹은 소수점 단위로 지속 업데이트됩니다. 이를 매 프레임 Signal에 곧바로 반영하면, 프레임워크 렌더링 트리에서 불필요한 DOM 상태 비교 연산이 매 프레임 수십 번 발생하여 프레임 드랍을 유발합니다.

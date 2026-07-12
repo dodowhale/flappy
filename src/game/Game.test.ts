@@ -262,4 +262,104 @@ describe("Flappy Bird Game Logic Tests", () => {
         (game as any).update(16.67);
         expect((game as any).state).toBe("BOSS_FIGHT"); // Triggered again!
     });
+
+    test("Bird invincibility states & reflected shield slam on bullet hit", () => {
+        const mockContext = {
+            canvas: { width: 400, height: 600 },
+            clearRect: () => {},
+            fillRect: () => {},
+            beginPath: () => {},
+            arc: () => {},
+            fill: () => {},
+            stroke: () => {},
+            restore: () => {},
+            save: () => {},
+            translate: () => {},
+            rotate: () => {},
+            createRadialGradient: () => ({ addColorStop: () => {} }),
+            createLinearGradient: () => ({ addColorStop: () => {} }),
+            drawImage: () => {},
+            fillText: () => {},
+            strokeText: () => {},
+            rect: () => {},
+            clip: () => {},
+            ellipse: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            closePath: () => {},
+            setLineDash: () => {},
+        };
+
+        const mockCanvas = {
+            getContext: () => mockContext,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            width: 400,
+            height: 600
+        } as any;
+
+        const game = new Game(mockCanvas, () => {}, () => {}, () => {}, () => {}, () => {}, () => {});
+        (game as any).state = "BOSS_FIGHT";
+        (game as any).boss = {
+            hp: 100,
+            maxHp: 100,
+            x: 290,
+            y: 180,
+            width: 90,
+            height: 130,
+            takeDamage: function(dmg: number) { this.hp -= dmg; },
+            update: () => {}
+        };
+
+        // 1. Set Shield Active
+        game.setPlayerCharacter("berry");
+        (game as any).bird.shieldActive = true;
+        (game as any).shieldDurationRemaining = 4500;
+
+        // Spawn a boss bullet colliding with bird
+        const bullet = {
+            x: (game as any).bird.x + (game as any).bird.xOffset,
+            y: (game as any).bird.y,
+            vx: 0,
+            vy: 0,
+            radius: 8,
+            active: true,
+            update: () => {}
+        };
+        (game as any).bossBullets.push(bullet as any);
+
+        // Run update to trigger bullet collision
+        (game as any).update(16.67);
+
+        // Shield should pop, bullet should be removed, and invincibility should trigger for 1.2s
+        expect((game as any).bird.shieldActive).toBe(false);
+        expect((game as any).bird.invincibleActive).toBe(true);
+        expect((game as any).invincibleDurationRemaining).toBe(1200);
+        expect((game as any).bossBullets.length).toBe(0);
+        // Boss should take 15 reflect damage
+        expect((game as any).boss.hp).toBe(85);
+
+        // While invincible, another bullet should bypass collision check and not damage/kill player
+        const bullet2 = {
+            x: (game as any).bird.x + (game as any).bird.xOffset,
+            y: (game as any).bird.y,
+            vx: 0,
+            vy: 0,
+            radius: 8,
+            active: true,
+            update: () => {}
+        };
+        (game as any).bossBullets.push(bullet2 as any);
+        
+        (game as any).update(16.67);
+        // Bullet should still exist or bypass (in our update, it bypasses, so active is true)
+        expect((game as any).bossBullets.length).toBe(1);
+        expect((game as any).bossBullets[0].active).toBe(true);
+        expect((game as any).state).toBe("BOSS_FIGHT"); // Did not die
+
+        // Update with 1200ms elapsed to end invincibility
+        (game as any).update(1200);
+        expect((game as any).bird.invincibleActive).toBe(false);
+        expect((game as any).invincibleDurationRemaining).toBe(0);
+    });
 });

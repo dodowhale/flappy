@@ -39,3 +39,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # VS Code workspace settings (optional/local)
 .vscode/
 
+# Local game leaderboard data
+leaderboard.json
+
+
