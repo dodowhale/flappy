@@ -30,6 +30,8 @@ SolidJS와 HTML5 Canvas API, 그리고 Bun + Hono로 구현된 고성능 패럴�
 ├── server.ts             # Hono 기반 프로덕션 static 파일 서빙 및 리더보드 API (빌드 없음)
 ├── build.ts              # 배포용 프로덕션 빌드 스크립트
 ├── index.html            # 웹 진입점 HTML
+├── sw.js                 # PWA Service Worker
+├── manifest.json         # PWA Manifest
 └── package.json          # 의존성 및 스크립트 정의
 ```
 

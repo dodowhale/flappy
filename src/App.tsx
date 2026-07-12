@@ -48,9 +48,14 @@ const App = () => {
     const [activeCharacter, setActiveCharacter] = createSignal(
         localStorage.getItem('flappy-active-character') || 'goldy'
     );
-    const [unlockedCharacters, setUnlockedCharacters] = createSignal<string[]>(
-        JSON.parse(localStorage.getItem('flappy-unlocked-characters') || '["goldy"]')
-    );
+    const getUnlockedCharacters = (): string[] => {
+        try {
+            return JSON.parse(localStorage.getItem('flappy-unlocked-characters') || '["goldy"]');
+        } catch {
+            return ['goldy'];
+        }
+    };
+    const [unlockedCharacters, setUnlockedCharacters] = createSignal<string[]>(getUnlockedCharacters());
     const [isShopOpen, setIsShopOpen] = createSignal(false);
 
     // Skill cooldown signals
@@ -430,7 +435,7 @@ const App = () => {
                 <button style={{
                     position: 'absolute',
                     top: '14px',
-                    left: '18px',
+                    left: '60px',
                     color: '#ffffff',
                     'background': 'rgba(74, 44, 0, 0.65)',
                     'border': '2.5px solid #4a2c00',

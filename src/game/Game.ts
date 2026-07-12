@@ -356,27 +356,6 @@ class AudioManager {
         }, 300);
     }
 
-    public playSlow() {
-        this.init();
-        if (this.ctx?.state === 'suspended') this.ctx.resume();
-        const osc = this.ctx!.createOscillator();
-        const gain = this.ctx!.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(330, this.ctx!.currentTime);
-        osc.frequency.linearRampToValueAtTime(110, this.ctx!.currentTime + 0.35);
-        gain.gain.setValueAtTime(0.06, this.ctx!.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(this.ctx!.destination);
-        osc.start();
-        osc.stop(this.ctx!.currentTime + 0.35);
-
-        setTimeout(() => {
-            osc.disconnect();
-            gain.disconnect();
-        }, 450);
-    }
-
     public playDash() {
         this.init();
         if (this.ctx?.state === 'suspended') this.ctx.resume();
@@ -629,7 +608,6 @@ export class Bird {
 
     // New active status
     public dashActive: boolean = false;
-    public glideActive: boolean = false;
     public xOffset: number = 0;
     public feverActive: boolean = false;
     public invincibleActive: boolean = false;
@@ -840,19 +818,7 @@ export class Bird {
             ctx.restore();
         }
 
-        // 10. Choco Glide Aura
-        if (this.glideActive) {
-            ctx.save();
-            ctx.translate(this.x + this.xOffset, this.y);
-            ctx.fillStyle = 'rgba(161, 136, 127, 0.45)';
-            ctx.beginPath();
-            ctx.arc(-r - 6, Math.sin(performance.now() * 0.01) * 4, 3.5, 0, Math.PI * 2);
-            ctx.arc(-r - 12, Math.cos(performance.now() * 0.012) * 5, 2.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-        }
-
-        // 11. Plum Fever Golden/Purple Aura
+        // 10. Plum Fever Golden/Purple Aura
         if (this.feverActive) {
             ctx.save();
             ctx.translate(this.x + this.xOffset, this.y);
@@ -1829,13 +1795,6 @@ export class Game {
         if (e instanceof KeyboardEvent && (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyS' || e.code === 'KeyF')) {
             e.preventDefault();
             this.useActiveSkill();
-            return;
-        }
-
-        // Debug cheat: Press 'KeyB' to trigger boss fight instantly
-        if (e instanceof KeyboardEvent && e.code === 'KeyB' && this.state === 'PLAYING') {
-            e.preventDefault();
-            this.triggerBossFight();
             return;
         }
 

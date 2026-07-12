@@ -69,9 +69,10 @@
 
 ### 3.2 사운드 합성 (Sound Synthesis)
 - **Web Audio API** 활용:
-  - Jump: Square Wave (200Hz -> 600Hz)
-  - Score: Sine Wave (800Hz -> 1200Hz)
-  - Hit: Sawtooth Wave (150Hz -> 40Hz)
+  - Jump: Square Wave (220Hz -> 650Hz)
+  - Score: Sine Wave (880Hz -> 1320Hz)
+  - Hit: Sawtooth Wave (140Hz -> 30Hz)
+  - BGM: Square & Triangle Wave (C Major/Pentatonic 루프)
 
 ### 3.3 렌더링 및 UI
 - **절차적 드로잉**: 모든 그래픽 요소는 Canvas API의 `arc`, `ellipse`, `linearGradient`, `radialGradient`를 사용하여 런타임에 그려집니다.
@@ -81,6 +82,7 @@
 ## 4. 상태 관리
 - **READY**: 게임 시작 전, 클릭 대기 중.
 - **PLAYING**: 게임 진행 중, 점수 카운트.
+- **BOSS_FIGHT**: 보스전 진행 중, 무한 비행 및 슈팅.
 - **GAME_OVER**: 충돌 후 결과 화면, 재시작 대기.
 
 ### 5. 점수 및 리더보드 시스템
@@ -97,9 +99,14 @@
 3.  [x] 플레이어(새) 캐릭터 물리 적용 및 조작 구현
 4.  [x] 파이프 생성 및 이동 로직 구현
 5.  [x] 충돌 감지 및 게임 오버 처리
-6.  [x] 점수 UI 및 상태 전환(Ready, Over) 구현
+6.  [x] 점수 UI 및 상태 전환(Ready, Over, Boss) 구현
 7.  [x] 리더보드 API 연동 및 UI 구현
 8.  [x] 그래픽 리소스 및 효과음 추가 (프로시저럴 렌더링 및 Web Audio API 활용)
+9.  [x] 동적 날씨 시스템 및 패럴랙스 배경 구현
+10. [x] 보스 레이드(Candy Giant) 시스템 구현
+11. [x] 피버 시스템 및 아이템 박스(버프) 구현
+12. [x] 캐릭터 상점 및 고유 스킬 시스템 추가
+13. [x] PWA 오프라인 지원 적용
 
 ## 7. 사용자 경험(UX) 개선 및 디테일 보완 (UX Enhancements & Bugfixes)
 

@@ -1,6 +1,6 @@
 {
   "name": "flappy-bird-solid-bun",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "module": "dev.ts",
   "type": "module",
     "scripts": {
